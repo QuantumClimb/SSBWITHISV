@@ -1,8 +1,10 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Environment, ContactShadows, Center, Html, Line, Sphere, Loader } from '@react-three/drei';
+import { OrbitControls, Environment, ContactShadows, Html, Line, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { Path3D, ToolMode } from '../types';
 // Model chunks to load (lazy loaded on demand)
 const MODEL_URLS = {
@@ -17,11 +19,7 @@ const MODEL_URLS = {
   lObs: '/L_OBS.glb',
   pgtBase: '/PGT_BASE.glb',
 };
-// Configure GLTF loader with Draco support
-if (typeof window !== 'undefined') {
-  const url = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
-  useGLTF.setDecoderPath?.(url);
-}
+
 
 interface Viewer3DProps {
   isDrawingMode: boolean;
@@ -33,8 +31,6 @@ interface Viewer3DProps {
   pencilWidth: number;
   eraserWidth: number;
 }
-
-const MODEL_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb';
 
 const Loader = () => (
   <Html center>
@@ -71,34 +67,43 @@ const ModelWithAnnotations = ({
   const isDrawing3D = useRef(false);
   const OFFSET_DISTANCE = 0.015;
 
-  // Load models lazily - initially only load ground model
+  // Load all models sequentially
   useEffect(() => {
-    const loadInitialModel = async () => {
-      try {
-        const groundGltf = await useGLTF(MODEL_URLS.ground);
-        setScenes([groundGltf.scene.clone()]);
-      } catch (error) {
-        console.error('Error loading ground model:', error);
+    const loader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    loader.setDRACOLoader(dracoLoader);
+
+    const loadAllModels = async () => {
+      const modelKeys = Object.keys(MODEL_URLS) as (keyof typeof MODEL_URLS)[];
+      
+      for (const key of modelKeys) {
+        const url = MODEL_URLS[key];
+        try {
+          await new Promise<void>((resolve, reject) => {
+            loader.load(
+              url,
+              (gltf) => {
+                setScenes(prev => [...prev, gltf.scene.clone()]);
+                setLoadedModels(prev => new Set([...prev, key]));
+                console.log(`Loaded model: ${key}`);
+                resolve();
+              },
+              undefined,
+              (error) => {
+                console.error(`Error loading ${key} model:`, error);
+                reject(error);
+              }
+            );
+          });
+        } catch (error) {
+          console.error(`Failed to load ${key}:`, error);
+        }
       }
     };
-    loadInitialModel();
-  }, []);
-
-  // Lazy load additional models when needed
-  const loadAdditionalModel = useCallback(async (modelKey: string) => {
-    if (loadedModels.has(modelKey)) return;
     
-    try {
-      const url = MODEL_URLS[modelKey as keyof typeof MODEL_URLS];
-      if (!url) return;
-      
-      const gltf = await useGLTF(url);
-      setScenes(prev => [...prev, gltf.scene.clone()]);
-      setLoadedModels(prev => new Set([...prev, modelKey]));
-    } catch (error) {
-      console.error(`Error loading ${modelKey} model:`, error);
-    }
-  }, [loadedModels]);
+    loadAllModels();
+  }, []);
 
   const getSurfacePoint = useCallback((e: any) => {
     if (!e.point || !e.face) return null;
@@ -140,7 +145,7 @@ const ModelWithAnnotations = ({
     if (isDrawing3D.current && surface) {
       e.stopPropagation();
       if (activeTool === 'pencil3d') {
-        const lastPoint = currentPoints[currentPoints.length - 1];
+        const lastPoint = currentPoints.at(-1);
         if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
           setCurrentPoints(prev => [...prev, surface.point]);
         }
@@ -162,7 +167,7 @@ const ModelWithAnnotations = ({
       if (isDrawing3D.current) {
         if (currentPoints.length > 1 && activeTool === 'pencil3d') {
           onAddPath3D({
-            id: Math.random().toString(36).substr(2, 9),
+            id: Math.random().toString(36).substring(2, 11),
             points: currentPoints.map(p => ({ x: p.x, y: p.y, z: p.z })),
             color: currentColor,
             width: pencilWidth
@@ -172,17 +177,19 @@ const ModelWithAnnotations = ({
         setCurrentPoints([]);
       }
     };
-    window.addEventListener('pointerup', handleGlobalUp);
-    return () => window.removeEventListener('pointerup', handleGlobalUp);
+    globalThis.addEventListener('pointerup', handleGlobalUp);
+    return () => globalThis.removeEventListener('pointerup', handleGlobalUp);
   }, [currentPoints, activeTool, currentColor, pencilWidth, onAddPath3D]);
 
   return (
     <group onPointerLeave={() => setHoverInfo(null)}>
-      {/* Render loaded model chunks at the same origin point */}
-      {scenes.map((scene, index) => (
+      {/* Render loaded model chunks at the origin with scale */}
+      {scenes.map((scene) => (
         <primitive 
-          key={index}
+          key={scene.uuid}
           object={scene}
+          position={[0, 0, 0]}
+          scale={[1, 1, 1]}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
         />
@@ -226,7 +233,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
     <div className="absolute inset-0 w-full h-full bg-slate-900">
       <Canvas 
         shadows 
-        camera={{ position: [5, 5, 5], fov: 45 }} 
+        camera={{ position: [50, 50, 50], fov: 60, near: 0.1, far: 10000 }} 
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
       >
@@ -235,8 +242,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         <pointLight position={[-10, -10, -10]} color="#3b82f6" intensity={1.5} />
         
         <Suspense fallback={<Loader />}>
-          <Center top>
-            <ModelWithAnnotations 
+          <ModelWithAnnotations 
               activeTool={activeTool} 
               onAddPath3D={onAddPath3D}
               onRemovePath3D={onRemovePath3D}
@@ -255,13 +261,12 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 polygonOffsetFactor={-15}
               />
             ))}
-          </Center>
           <Environment preset="city" />
           <ContactShadows 
             opacity={0.4} 
-            scale={10} 
+            scale={100} 
             blur={2.5} 
-            far={1.5} 
+            far={50} 
             resolution={512} 
             color="#000000" 
           />
