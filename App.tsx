@@ -104,14 +104,14 @@ const App: React.FC = () => {
       {/* Overlay for instructions */}
       <div className="absolute top-6 left-6 z-20 pointer-events-none">
         <h1 className="text-white text-xl font-bold tracking-tight drop-shadow-lg">
-          3D Training <span className="text-blue-500">Annotator</span>
+          <span className="text-blue-500">SSBWITHISV</span>
         </h1>
         <p className="text-zinc-400 text-sm drop-shadow-md">
           {tool === 'pencil' && '2D Drawing: Annotating screen space.'}
           {tool === 'pencil3d' && '3D Drawing: Click and drag on model.'}
           {tool === 'eraser' && '2D Eraser: Remove screen annotations.'}
           {tool === 'eraser3d' && '3D Eraser: Click 3D lines to remove them.'}
-          {tool === 'view' && 'Inspection Mode: Rotate, Zoom, and Pan.'}
+          {tool === 'view' && 'Virtual GTO Trainer'}
         </p>
       </div>
     </div>

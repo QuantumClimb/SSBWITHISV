@@ -31,7 +31,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
-              3D Training <span className="text-blue-500">Annotator</span>
+              <span className="text-blue-500">SSBWITHISV</span>
             </h1>
             <p className="text-zinc-400 text-sm">Sign in to continue</p>
           </div>
