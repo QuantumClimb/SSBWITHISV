@@ -1,9 +1,16 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Environment, ContactShadows, Center, Html, Line, Sphere } from '@react-three/drei';
+import { OrbitControls, useGLTF, Environment, ContactShadows, Center, Html, Line, Sphere, Loader } from '@react-three/drei';
 import * as THREE from 'three';
+import { DRACOLoader } from 'three-stdlib';
 import { Path3D, ToolMode } from '../types';
+
+// Configure DRACO decoder
+useGLTF.preload('/ground.glb');
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+THREE.GLTFLoader.prototype.setDRACOLoader?.(dracoLoader);
 
 interface Viewer3DProps {
   isDrawingMode: boolean;
@@ -16,7 +23,7 @@ interface Viewer3DProps {
   eraserWidth: number;
 }
 
-const MODEL_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb';
+const MODEL_URL = '/ground.glb';
 
 const Loader = () => (
   <Html center>
