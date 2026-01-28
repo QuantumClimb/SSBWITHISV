@@ -1,0 +1,5 @@
+{
+  "name": "3D ANNOTATOR",
+  "description": "A 3D training application with a screen-space 2D drawing overlay for annotations. Built with React, Three.js, and Tailwind CSS.",
+  "requestFramePermissions": []
+}
