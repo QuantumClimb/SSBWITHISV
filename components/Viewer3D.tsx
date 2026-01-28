@@ -4,7 +4,19 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Environment, ContactShadows, Center, Html, Line, Sphere, Loader } from '@react-three/drei';
 import * as THREE from 'three';
 import { Path3D, ToolMode } from '../types';
-
+// Model chunks to load
+const MODEL_URLS = [
+  '/Ground.glb',
+  '/CT.glb',
+  '/HGT.glb',
+  '/CT_AUX.glb',
+  '/IND_OBS.glb',
+  '/Gate.glb',
+  '/Pathway.glb',
+  '/FGT.glb',
+  '/L_OBS.glb',
+  '/PGT_BASE.glb',
+];
 // Configure GLTF loader with Draco support
 if (typeof window !== 'undefined') {
   const url = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
@@ -36,7 +48,6 @@ const Loader = () => (
 );
 
 const ModelWithAnnotations = ({ 
-  url, 
   activeTool, 
   onAddPath3D, 
   onRemovePath3D,
@@ -45,7 +56,6 @@ const ModelWithAnnotations = ({
   eraserWidth,
   paths3D
 }: { 
-  url: string; 
   activeTool: ToolMode; 
   onAddPath3D: (path: Path3D) => void;
   onRemovePath3D: (id: string) => void;
@@ -54,11 +64,26 @@ const ModelWithAnnotations = ({
   eraserWidth: number;
   paths3D: Path3D[];
 }) => {
-  const { scene } = useGLTF(url);
+  const [scenes, setScenes] = useState<THREE.Scene[]>([]);
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
   const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
   const isDrawing3D = useRef(false);
-  const OFFSET_DISTANCE = 0.015; 
+  const OFFSET_DISTANCE = 0.015;
+
+  // Load all model chunks
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const loadedScenes = await Promise.all(
+          MODEL_URLS.map(url => useGLTF(url).then(gltf => gltf.scene.clone()))
+        );
+        setScenes(loadedScenes);
+      } catch (error) {
+        console.error('Error loading models:', error);
+      }
+    };
+    loadModels();
+  }, []);
 
   const getSurfacePoint = useCallback((e: any) => {
     if (!e.point || !e.face) return null;
@@ -138,12 +163,15 @@ const ModelWithAnnotations = ({
 
   return (
     <group onPointerLeave={() => setHoverInfo(null)}>
-      <primitive 
-        object={scene} 
-        scale={2} 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
+      {/* Render all model chunks at the same origin point */}
+      {scenes.map((scene, index) => (
+        <primitive 
+          key={index}
+          object={scene}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+        />
+      ))}
       
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
         <Sphere args={[activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200, 16, 16]} position={hoverInfo.point}>
@@ -194,7 +222,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         <Suspense fallback={<Loader />}>
           <Center top>
             <ModelWithAnnotations 
-              url={MODEL_URL} 
               activeTool={activeTool} 
               onAddPath3D={onAddPath3D}
               onRemovePath3D={onRemovePath3D}
@@ -236,7 +263,5 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
     </div>
   );
 };
-
-useGLTF.preload(MODEL_URL);
 
 export default Viewer3D;
