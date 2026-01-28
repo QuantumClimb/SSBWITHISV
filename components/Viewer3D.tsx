@@ -229,6 +229,22 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   pencilWidth,
   eraserWidth
 }) => {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+
+  useEffect(() => {
+    if (lightRef.current) {
+      lightRef.current.shadow.mapSize.width = 2048;
+      lightRef.current.shadow.mapSize.height = 2048;
+      lightRef.current.shadow.camera.far = 300;
+      lightRef.current.shadow.camera.left = -100;
+      lightRef.current.shadow.camera.right = 100;
+      lightRef.current.shadow.camera.top = 100;
+      lightRef.current.shadow.camera.bottom = -100;
+      lightRef.current.shadow.bias = -0.0001;
+      lightRef.current.shadow.camera.updateProjectionMatrix();
+    }
+  }, []);
+
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900">
       <Canvas 
@@ -239,17 +255,10 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       >
         <ambientLight intensity={1.5} />
         <directionalLight 
+          ref={lightRef}
           position={[60, 80, 40]} 
           intensity={2.5}
           castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-far={300}
-          shadow-camera-left={-100}
-          shadow-camera-right={100}
-          shadow-camera-top={100}
-          shadow-camera-bottom={-100}
-          shadow-bias={-0.0001}
         />
         <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} castShadow />
         <pointLight position={[-10, -10, -10]} color="#3b82f6" intensity={1.5} />
