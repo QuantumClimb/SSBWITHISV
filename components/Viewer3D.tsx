@@ -238,6 +238,19 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         style={{ touchAction: 'none' }}
       >
         <ambientLight intensity={1.5} />
+        <directionalLight 
+          position={[60, 80, 40]} 
+          intensity={2.5}
+          castShadow
+          shadow-mapSize-width={2048}
+          shadow-mapSize-height={2048}
+          shadow-camera-far={300}
+          shadow-camera-left={-100}
+          shadow-camera-right={100}
+          shadow-camera-top={100}
+          shadow-camera-bottom={-100}
+          shadow-bias={-0.0001}
+        />
         <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} castShadow />
         <pointLight position={[-10, -10, -10]} color="#3b82f6" intensity={1.5} />
         
@@ -261,7 +274,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 polygonOffsetFactor={-15}
               />
             ))}
-          <Environment preset="city" />
+          <Environment preset="sunset" />
           <ContactShadows 
             opacity={0.4} 
             scale={100} 
