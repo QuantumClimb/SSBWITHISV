@@ -3,14 +3,13 @@ import React, { Suspense, useState, useRef, useCallback, useEffect } from 'react
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Environment, ContactShadows, Center, Html, Line, Sphere, Loader } from '@react-three/drei';
 import * as THREE from 'three';
-import { DRACOLoader } from 'three-stdlib';
 import { Path3D, ToolMode } from '../types';
 
-// Configure DRACO decoder
-useGLTF.preload('/ground.glb');
-const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-THREE.GLTFLoader.prototype.setDRACOLoader?.(dracoLoader);
+// Configure GLTF loader with Draco support
+if (typeof window !== 'undefined') {
+  const url = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
+  useGLTF.setDecoderPath?.(url);
+}
 
 interface Viewer3DProps {
   isDrawingMode: boolean;
