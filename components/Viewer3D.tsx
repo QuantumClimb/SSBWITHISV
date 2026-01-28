@@ -3,8 +3,8 @@ import React, { Suspense, useState, useRef, useCallback, useEffect } from 'react
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Html, Line, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { Path3D, ToolMode } from '../types';
 // Model chunks to load (lazy loaded on demand)
 const MODEL_URLS = {
