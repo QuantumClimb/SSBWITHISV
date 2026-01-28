@@ -278,6 +278,10 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           enableDamping
           dampingFactor={0.1}
           rotateSpeed={0.8}
+          minDistance={10}
+          maxDistance={200}
+          minPolarAngle={0}
+          maxPolarAngle={Math.PI * 0.45}
         />
       </Canvas>
     </div>
