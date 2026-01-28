@@ -60,8 +60,7 @@ const ModelWithAnnotations = ({
   eraserWidth: number;
   paths3D: Path3D[];
 }) => {
-  const [scenes, setScenes] = useState<THREE.Scene[]>([]);
-  const [loadedModels, setLoadedModels] = useState<Set<string>>(new Set(['ground']));
+  const [scenes, setScenes] = useState<(THREE.Scene | THREE.Group)[]>([]);
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
   const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
   const isDrawing3D = useRef(false);
@@ -74,30 +73,33 @@ const ModelWithAnnotations = ({
     dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
     loader.setDRACOLoader(dracoLoader);
 
+    const handleGLTFLoad = (gltf: { scene: THREE.Scene | THREE.Group }, key: string) => {
+      setScenes(prev => [...prev, gltf.scene]);
+      console.log(`Loaded model: ${key}`);
+    };
+
+    const handleLoadError = (key: string, error: unknown) => {
+      console.error(`Failed to load ${key}:`, error);
+    };
+
     const loadAllModels = async () => {
       const modelKeys = Object.keys(MODEL_URLS) as (keyof typeof MODEL_URLS)[];
       
       for (const key of modelKeys) {
         const url = MODEL_URLS[key];
         try {
+          // eslint-disable-next-line no-await-in-loop
           await new Promise<void>((resolve, reject) => {
-            loader.load(
-              url,
-              (gltf) => {
-                setScenes(prev => [...prev, gltf.scene.clone()]);
-                setLoadedModels(prev => new Set([...prev, key]));
-                console.log(`Loaded model: ${key}`);
-                resolve();
-              },
-              undefined,
-              (error) => {
-                console.error(`Error loading ${key} model:`, error);
-                reject(error);
-              }
-            );
+            loader.load(url, (gltf) => {
+              handleGLTFLoad(gltf, key);
+              resolve();
+            }, undefined, (error: unknown) => {
+              handleLoadError(key, error);
+              reject(error);
+            });
           });
         } catch (error) {
-          console.error(`Failed to load ${key}:`, error);
+          handleLoadError(key, error);
         }
       }
     };
@@ -183,11 +185,11 @@ const ModelWithAnnotations = ({
 
   return (
     <group onPointerLeave={() => setHoverInfo(null)}>
-      {/* Render loaded model chunks at the origin with scale */}
-      {scenes.map((scene) => (
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      {scenes.map((scene, idx) => (
         <primitive 
           key={scene.uuid}
-          object={scene}
+          object={scene as THREE.Object3D}
           position={[0, 0, 0]}
           scale={[1, 1, 1]}
           onPointerDown={handlePointerDown}
@@ -196,12 +198,13 @@ const ModelWithAnnotations = ({
       ))}
       
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
+        // eslint-disable-next-line react/no-unknown-property
         <Sphere args={[activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200, 16, 16]} position={hoverInfo.point}>
+          {/* eslint-disable-next-line react/no-unknown-property */}
           <meshBasicMaterial 
-            color={activeTool === 'eraser3d' ? '#ff4444' : currentColor} 
-            transparent 
-            opacity={0.7} 
-            depthTest={false}
+            color={activeTool === 'eraser3d' ? '#ff4444' : currentColor}
+            transparent
+            opacity={0.7}
           />
         </Sphere>
       )}
@@ -253,14 +256,18 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
       >
+        {/* eslint-disable-next-line react/no-unknown-property */}
         <ambientLight intensity={1.5} />
+        {/* eslint-disable-next-line react/no-unknown-property */}
         <directionalLight 
           ref={lightRef}
           position={[60, 80, 40]} 
           intensity={2.5}
           castShadow
         />
+        {/* eslint-disable-next-line react/no-unknown-property */}
         <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} castShadow />
+        {/* eslint-disable-next-line react/no-unknown-property */}
         <pointLight position={[-10, -10, -10]} color="#3b82f6" intensity={1.5} />
         
         <Suspense fallback={<Loader />}>
