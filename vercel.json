@@ -1,0 +1,5 @@
+# Vercel Build Configuration
+{
+  "installCommand": "git lfs install && git lfs pull && npm install",
+  "buildCommand": "npm run build"
+}
