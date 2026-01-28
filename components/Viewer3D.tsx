@@ -4,19 +4,19 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Environment, ContactShadows, Center, Html, Line, Sphere, Loader } from '@react-three/drei';
 import * as THREE from 'three';
 import { Path3D, ToolMode } from '../types';
-// Model chunks to load
-const MODEL_URLS = [
-  '/Ground.glb',
-  '/CT.glb',
-  '/HGT.glb',
-  '/CT_AUX.glb',
-  '/IND_OBS.glb',
-  '/Gate.glb',
-  '/Pathway.glb',
-  '/FGT.glb',
-  '/L_OBS.glb',
-  '/PGT_BASE.glb',
-];
+// Model chunks to load (lazy loaded on demand)
+const MODEL_URLS = {
+  ground: '/Ground.glb',
+  ct: '/CT.glb',
+  hgt: '/HGT.glb',
+  ctAux: '/CT_AUX.glb',
+  indObs: '/IND_OBS.glb',
+  gate: '/Gate.glb',
+  pathway: '/Pathway.glb',
+  fgt: '/FGT.glb',
+  lObs: '/L_OBS.glb',
+  pgtBase: '/PGT_BASE.glb',
+};
 // Configure GLTF loader with Draco support
 if (typeof window !== 'undefined') {
   const url = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
@@ -65,25 +65,40 @@ const ModelWithAnnotations = ({
   paths3D: Path3D[];
 }) => {
   const [scenes, setScenes] = useState<THREE.Scene[]>([]);
+  const [loadedModels, setLoadedModels] = useState<Set<string>>(new Set(['ground']));
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
   const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
   const isDrawing3D = useRef(false);
   const OFFSET_DISTANCE = 0.015;
 
-  // Load all model chunks
+  // Load models lazily - initially only load ground model
   useEffect(() => {
-    const loadModels = async () => {
+    const loadInitialModel = async () => {
       try {
-        const loadedScenes = await Promise.all(
-          MODEL_URLS.map(url => useGLTF(url).then(gltf => gltf.scene.clone()))
-        );
-        setScenes(loadedScenes);
+        const groundGltf = await useGLTF(MODEL_URLS.ground);
+        setScenes([groundGltf.scene.clone()]);
       } catch (error) {
-        console.error('Error loading models:', error);
+        console.error('Error loading ground model:', error);
       }
     };
-    loadModels();
+    loadInitialModel();
   }, []);
+
+  // Lazy load additional models when needed
+  const loadAdditionalModel = useCallback(async (modelKey: string) => {
+    if (loadedModels.has(modelKey)) return;
+    
+    try {
+      const url = MODEL_URLS[modelKey as keyof typeof MODEL_URLS];
+      if (!url) return;
+      
+      const gltf = await useGLTF(url);
+      setScenes(prev => [...prev, gltf.scene.clone()]);
+      setLoadedModels(prev => new Set([...prev, modelKey]));
+    } catch (error) {
+      console.error(`Error loading ${modelKey} model:`, error);
+    }
+  }, [loadedModels]);
 
   const getSurfacePoint = useCallback((e: any) => {
     if (!e.point || !e.face) return null;
@@ -163,7 +178,7 @@ const ModelWithAnnotations = ({
 
   return (
     <group onPointerLeave={() => setHoverInfo(null)}>
-      {/* Render all model chunks at the same origin point */}
+      {/* Render loaded model chunks at the same origin point */}
       {scenes.map((scene, index) => (
         <primitive 
           key={index}
