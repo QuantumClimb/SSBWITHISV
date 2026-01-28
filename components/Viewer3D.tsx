@@ -22,7 +22,7 @@ interface Viewer3DProps {
   eraserWidth: number;
 }
 
-const MODEL_URL = '/ground.glb';
+const MODEL_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb';
 
 const Loader = () => (
   <Html center>
