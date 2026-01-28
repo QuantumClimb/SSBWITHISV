@@ -3,9 +3,11 @@ import React, { useState, useCallback } from 'react';
 import Viewer3D from './components/Viewer3D';
 import AnnotationCanvas from './components/AnnotationCanvas';
 import Toolbar from './components/Toolbar';
+import Login from './components/Login';
 import { Path, Path3D, ToolMode } from './types';
 
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tool, setTool] = useState<ToolMode>('view');
   const [color, setColor] = useState('#ef4444');
   const [pencilWidth, setPencilWidth] = useState(4);
@@ -50,6 +52,14 @@ const App: React.FC = () => {
   const removePath3D = useCallback((id: string) => {
     setPaths3D((prev) => prev.filter(p => p.id !== id));
   }, []);
+
+  const handleLoginSuccess = useCallback(() => {
+    setIsAuthenticated(true);
+  }, []);
+
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div className="relative w-screen h-screen bg-slate-900 select-none overflow-hidden text-white font-sans">
