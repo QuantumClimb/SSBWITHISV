@@ -3,22 +3,11 @@ import React, { Suspense, useState, useRef, useCallback, useEffect } from 'react
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Html, Line, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { Path3D, ToolMode } from '../types';
-// Model chunks to load (lazy loaded on demand)
-const MODEL_URLS = {
-  ground: '/Ground.glb',
-  ct: '/CT.glb',
-  hgt: '/HGT.glb',
-  ctAux: '/CT_AUX.glb',
-  indObs: '/IND_OBS.glb',
-  gate: '/Gate.glb',
-  pathway: '/Pathway.glb',
-  fgt: '/FGT.glb',
-  lObs: '/L_OBS.glb',
-  pgtBase: '/PGT_BASE.glb',
-};
+import * as Models from './models';
+
+// Import all models
+const { Ground, CT, HGT, CT_AUX, IND_OBS, Gate, Pathway, FGT, L_OBS, PGT_BASE } = Models;
 
 
 interface Viewer3DProps {
@@ -60,52 +49,10 @@ const ModelWithAnnotations = ({
   eraserWidth: number;
   paths3D: Path3D[];
 }) => {
-  const [scenes, setScenes] = useState<(THREE.Scene | THREE.Group)[]>([]);
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
   const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
   const isDrawing3D = useRef(false);
   const OFFSET_DISTANCE = 0.015;
-
-  // Load all models sequentially
-  useEffect(() => {
-    const loader = new GLTFLoader();
-    const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-    loader.setDRACOLoader(dracoLoader);
-
-    const handleGLTFLoad = (gltf: { scene: THREE.Scene | THREE.Group }, key: string) => {
-      setScenes(prev => [...prev, gltf.scene]);
-      console.log(`Loaded model: ${key}`);
-    };
-
-    const handleLoadError = (key: string, error: unknown) => {
-      console.error(`Failed to load ${key}:`, error);
-    };
-
-    const loadAllModels = async () => {
-      const modelKeys = Object.keys(MODEL_URLS) as (keyof typeof MODEL_URLS)[];
-      
-      for (const key of modelKeys) {
-        const url = MODEL_URLS[key];
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>((resolve, reject) => {
-            loader.load(url, (gltf) => {
-              handleGLTFLoad(gltf, key);
-              resolve();
-            }, undefined, (error: unknown) => {
-              handleLoadError(key, error);
-              reject(error);
-            });
-          });
-        } catch (error) {
-          handleLoadError(key, error);
-        }
-      }
-    };
-    
-    loadAllModels();
-  }, []);
 
   const getSurfacePoint = useCallback((e: any) => {
     if (!e.point || !e.face) return null;
@@ -185,17 +132,47 @@ const ModelWithAnnotations = ({
 
   return (
     <group onPointerLeave={() => setHoverInfo(null)}>
-      {/* eslint-disable-next-line react/no-unknown-property */}
-      {scenes.map((scene, idx) => (
-        <primitive 
-          key={scene.uuid}
-          object={scene as THREE.Object3D}
-          position={[0, 0, 0]}
-          scale={[1, 1, 1]}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-        />
-      ))}
+      {/* All model components */}
+      <Ground 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <CT 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <HGT 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <CT_AUX 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <IND_OBS 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <Gate 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <Pathway 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <FGT 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <L_OBS 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
+      <PGT_BASE 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      />
       
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
         // eslint-disable-next-line react/no-unknown-property
@@ -305,8 +282,11 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           enabled={activeTool === 'view'} 
           makeDefault 
           enableDamping
-          dampingFactor={0.1}
-          rotateSpeed={0.8}
+          dampingFactor={0.06}
+          rotateSpeed={0.5}
+          zoomSpeed={0.8}
+          autoRotate={false}
+          autoRotateSpeed={2}
           minDistance={10}
           maxDistance={200}
           minPolarAngle={0}
