@@ -293,9 +293,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
     const sunPos = new THREE.Vector3(130, 150, 130);
-
-    const warm = new THREE.Color('#ffb86b');
-    const cool = new THREE.Color('#ffffff');
     const color = new THREE.Color('#ffffff');
     const intensity = 1.2;
 
@@ -343,7 +340,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       <Canvas 
         camera={{ position: [50, 50, 50], fov: 60, near: 0.1, far: 10000 }} 
         dpr={[1.5, 2]}
-        antialias
         style={{ touchAction: 'none' }}
       >
         <Sky sunPosition={sunPosition} turbidity={2} rayleigh={2} mieCoefficient={0.003} mieDirectionalG={0.7} />
@@ -402,7 +398,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         <Stats />
 
         <EffectComposer multisampling={8} enableNormalPass>
-          <SSAO samples={21} radius={0.35} intensity={15} luminanceInfluence={0.5} color="black" />
+          {/* eslint-disable-next-line react/no-unknown-property */}
+          <SSAO samples={21} radius={0.35} intensity={15} luminanceInfluence={0.5} color={new THREE.Color('black')} />
+          {/* eslint-disable-next-line react/no-unknown-property */}
           <SMAA />
         </EffectComposer>
 
