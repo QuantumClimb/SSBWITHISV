@@ -67,7 +67,9 @@ const ModelWithAnnotations = ({
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
   const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
   const isDrawing3D = useRef(false);
+  const lastHoverTimeRef = useRef(0);
   const OFFSET_DISTANCE = 0.015;
+  const HOVER_THROTTLE_MS = 16; // ~60fps
 
   const createToonMaterial = useCallback((material: THREE.Material) => {
     const source = material as any;
@@ -148,30 +150,44 @@ const ModelWithAnnotations = ({
   }, [activeTool, paths3D, eraserWidth, onRemovePath3D, getSurfacePoint]);
 
   const handlePointerMove = useCallback((e: any) => {
-    const surface = getSurfacePoint(e);
-    if (surface) {
-      setHoverInfo(surface);
+    const now = performance.now();
+    
+    // Throttle hover info updates (60fps max)
+    if (now - lastHoverTimeRef.current > HOVER_THROTTLE_MS) {
+      const surface = getSurfacePoint(e);
+      if (surface) {
+        setHoverInfo(surface);
+      }
+      lastHoverTimeRef.current = now;
     }
     
-    if (isDrawing3D.current && surface) {
+    if (isDrawing3D.current) {
       e.stopPropagation();
-      if (activeTool === 'pencil3d') {
+      const surface = getSurfacePoint(e);
+      
+      if (activeTool === 'pencil3d' && surface) {
         const lastPoint = currentPoints.at(-1);
         if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
           setCurrentPoints(prev => [...prev, surface.point]);
         }
       } else if (activeTool === 'eraser3d') {
         const movePoint = e.point;
+        const eraserRadius = eraserWidth / 40;
+        const eraserRadiusSq = eraserRadius * eraserRadius; // Avoid sqrt in loop
+        
+        // Optimized: Only check paths that could possibly intersect
         paths3D.forEach(path => {
           const isNear = path.points.some(p => {
-            const v = new THREE.Vector3(p.x, p.y, p.z);
-            return v.distanceTo(movePoint) < (eraserWidth / 40);
+            const dx = p.x - movePoint.x;
+            const dy = p.y - movePoint.y;
+            const dz = p.z - movePoint.z;
+            return (dx * dx + dy * dy + dz * dz) < eraserRadiusSq; // Compare squared distances
           });
           if (isNear) onRemovePath3D(path.id);
         });
       }
     }
-  }, [activeTool, currentPoints, paths3D, eraserWidth, onRemovePath3D, getSurfacePoint]);
+  }, [activeTool, currentPoints, paths3D, eraserWidth, onRemovePath3D, getSurfacePoint, HOVER_THROTTLE_MS]);
 
   useEffect(() => {
     const handleGlobalUp = () => {
@@ -245,11 +261,25 @@ const ModelWithAnnotations = ({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
       />
+
+      {/* Ground plane - also drawable with 3D pencil */}
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <mesh 
+        position={[0, -0.65, 0]} 
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      >
+        {/* eslint-disable-next-line react/no-unknown-property */}
+        <planeGeometry args={[200, 200]} />
+        {/* eslint-disable-next-line react/no-unknown-property */}
+        <meshStandardMaterial color="#18941e" />
+      </mesh>
       
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
         // eslint-disable-next-line react/no-unknown-property
         <Sphere
-          args={[activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200, 16, 16]}
+          args={[activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200, 8, 8]}
           position={hoverInfo.point}
           userData={{ skipToon: true }}
         >
@@ -339,7 +369,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       </div>
       <Canvas 
         camera={{ position: [50, 50, 50], fov: 60, near: 0.1, far: 10000 }} 
-        dpr={[1.5, 2]}
+        dpr={[1, 1.5]}
         style={{ touchAction: 'none' }}
       >
         <Sky sunPosition={sunPosition} turbidity={2} rayleigh={2} mieCoefficient={0.003} mieDirectionalG={0.7} />
@@ -356,20 +386,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
         
         <Suspense fallback={<Loader />}>
-          {/* eslint-disable-next-line react/no-unknown-property */}
-          <mesh position={[0, -0.65, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            {/* eslint-disable-next-line react/no-unknown-property */}
-            <planeGeometry args={[200, 200]} />
-            {/* eslint-disable-next-line react/no-unknown-property */}
-            <meshStandardMaterial color="#18941e" />
-          </mesh>
           <ContactShadows
             position={[0, -0.19, 0]}
-            opacity={0.45}
+            opacity={0.35}
             scale={200}
-            blur={2.5}
-            far={30}
-            resolution={1024}
+            blur={1.5}
+            far={25}
+            resolution={512}
             color="#000000"
           />
           <ModelWithAnnotations 
@@ -395,11 +418,12 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           <Environment preset="sunset" />
         </Suspense>
 
-        <Stats />
+        {/* Performance monitoring disabled for production - uncomment to debug */}
+        {/* <Stats /> */}
 
-        <EffectComposer multisampling={8} enableNormalPass>
+        <EffectComposer multisampling={4} enableNormalPass>
           {/* eslint-disable-next-line react/no-unknown-property */}
-          <SSAO samples={21} radius={0.35} intensity={15} luminanceInfluence={0.5} color={new THREE.Color('black')} />
+          <SSAO samples={8} radius={0.3} intensity={10} luminanceInfluence={0.4} color={new THREE.Color('black')} />
           {/* eslint-disable-next-line react/no-unknown-property */}
           <SMAA />
         </EffectComposer>
