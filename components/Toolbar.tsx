@@ -45,10 +45,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const setWidth = isEraser ? onEraserWidthChange : onPencilWidthChange;
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-4 w-full max-w-4xl px-6 pb-safe">
+    <div className="fixed right-6 top-1/2 -translate-y-1/2 z-20 flex flex-row items-center gap-4 pr-safe">
       {isDrawingMode && (
-        <div className="bg-black/95 backdrop-blur-2xl px-6 py-4 rounded-3xl flex items-center gap-8 border border-white/10 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="flex items-center gap-5 min-w-[240px]">
+        <div className="bg-black/95 backdrop-blur-2xl px-6 py-4 rounded-3xl flex items-center gap-6 border border-white/10 shadow-2xl animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="flex items-center gap-4 min-w-[200px]">
             <MoveHorizontal size={20} className="text-zinc-500" />
             <input
               type="range"
@@ -71,22 +71,22 @@ const Toolbar: React.FC<ToolbarProps> = ({
         </div>
       )}
 
-      <div className="bg-zinc-900/90 backdrop-blur-xl p-3 rounded-[32px] flex items-center gap-3 border border-white/10 shadow-2xl overflow-x-auto no-scrollbar max-w-full">
+      <div className="bg-zinc-900/90 backdrop-blur-xl p-3 rounded-[32px] flex flex-col items-center gap-3 border border-white/10 shadow-2xl overflow-y-auto no-scrollbar max-h-[80vh]">
         <button
           onClick={onToggleDrawMode}
-          className={`flex items-center gap-3 px-6 py-4 rounded-2xl font-bold transition-all active:scale-90 ${
+          className={`flex flex-col items-center gap-2 px-4 py-6 rounded-2xl font-bold transition-all active:scale-90 ${
             tool === 'view' 
               ? 'bg-zinc-100 text-black shadow-lg shadow-white/10' 
               : 'text-zinc-400 hover:bg-white/5'
           }`}
         >
           <MousePointer2 size={24} />
-          <span className="hidden md:inline">Inspect</span>
+          <span className="text-xs">View</span>
         </button>
 
-        <div className="w-[1px] h-10 bg-white/10 mx-1 flex-shrink-0" />
+        <div className="h-[1px] w-10 bg-white/10 my-1 flex-shrink-0" />
 
-        <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-[22px]">
+        <div className="flex flex-col items-center gap-2 bg-white/5 p-1.5 rounded-[22px]">
           <button
             onClick={() => onSelectTool('pencil')}
             className={`p-4 rounded-xl transition-all active:scale-90 ${
@@ -105,10 +105,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-[22px]">
+        <div className="flex flex-col items-center gap-2 bg-white/5 p-1.5 rounded-[22px]">
           <button
             onClick={() => onSelectTool('pencil3d')}
-            className={`p-4 rounded-xl transition-all active:scale-90 flex items-center gap-2 ${
+            className={`p-4 rounded-xl transition-all active:scale-90 flex flex-col items-center gap-1 ${
               tool === 'pencil3d' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -117,7 +117,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </button>
           <button
             onClick={() => onSelectTool('eraser3d')}
-            className={`p-4 rounded-xl transition-all active:scale-90 flex items-center gap-2 ${
+            className={`p-4 rounded-xl transition-all active:scale-90 flex items-center justify-center ${
               tool === 'eraser3d' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -128,9 +128,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         </div>
 
-        <div className="w-[1px] h-10 bg-white/10 mx-1 flex-shrink-0" />
+        <div className="h-[1px] w-10 bg-white/10 my-1 flex-shrink-0" />
 
-        <div className="flex items-center gap-3 px-3">
+        <div className="flex flex-col items-center gap-3 py-3">
           {COLORS.map((c) => (
             <button
               key={c}
@@ -146,9 +146,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
           ))}
         </div>
 
-        <div className="w-[1px] h-10 bg-white/10 mx-1 flex-shrink-0" />
+        <div className="h-[1px] w-10 bg-white/10 my-1 flex-shrink-0" />
 
-        <div className="flex items-center gap-1">
+        <div className="flex flex-col items-center gap-1">
           <button
             onClick={onUndo}
             className="p-4 text-zinc-400 active:text-white rounded-2xl hover:bg-white/5 transition-all"

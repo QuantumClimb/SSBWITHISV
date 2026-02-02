@@ -24,6 +24,8 @@ type GLTFResult = GLTF & {
 
 export function Model(props: JSX.IntrinsicElements['group']) {
   const { nodes, materials } = useGLTF('/Ground.glb') as GLTFResult
+  if (!nodes || !materials) return null;
+  
   return (
     <group {...props} dispose={null}>
       <group position={[0, -0.533, 0]}>
