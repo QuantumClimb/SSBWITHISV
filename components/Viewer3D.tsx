@@ -1,7 +1,7 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Html, Line, Sphere, Sky, ContactShadows, Stats } from '@react-three/drei';
+import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows, Stats } from '@react-three/drei';
 import { EffectComposer, SSAO, SMAA } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { Path3D, ToolMode } from '../types';
@@ -44,6 +44,47 @@ const Loader = () => (
     </div>
   </Html>
 );
+
+// Custom gradient sky with deep blue to light blue
+const GradientSky = () => {
+  const mesh = useRef<THREE.Mesh>(null);
+
+  useEffect(() => {
+    if (mesh.current) {
+      const geometry = mesh.current.geometry as THREE.SphereGeometry;
+      const count = geometry.attributes.position.count;
+      const colors = new Float32Array(count * 3);
+
+      for (let i = 0; i < count; i++) {
+        const y = geometry.attributes.position.getY(i);
+        // Normalize y to 0-1 range (top to bottom of sphere)
+        const t = (y + 1) * 0.5;
+        
+        // Deep blue at top: #1e3a8a
+        // Light blue at horizon: #7dd3fc
+        const deepBlue = new THREE.Color(0x1e3a8a);
+        const lightBlue = new THREE.Color(0x7dd3fc);
+        
+        const color = deepBlue.clone().lerp(lightBlue, 1 - t);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    }
+  }, []);
+
+  return (
+    // eslint-disable-next-line react/no-unknown-property
+    <mesh ref={mesh} scale={[1000, 1000, 1000]}>
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <sphereGeometry args={[1, 32, 32]} />
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <meshBasicMaterial vertexColors side={THREE.BackSide} />
+    </mesh>
+  );
+};
 
 
 const ModelWithAnnotations = ({ 
@@ -372,7 +413,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         dpr={[1, 1.5]}
         style={{ touchAction: 'none' }}
       >
-        <Sky sunPosition={sunPosition} turbidity={2} rayleigh={2} mieCoefficient={0.003} mieDirectionalG={0.7} />
+        <GradientSky />
         {/* eslint-disable-next-line react/no-unknown-property */}
         <ambientLight intensity={ambientIntensity} />
         {/* eslint-disable react/no-unknown-property */}
