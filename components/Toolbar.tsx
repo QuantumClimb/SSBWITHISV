@@ -236,6 +236,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <div className="space-y-1 text-white/70">
                 <p><span className="font-bold">P</span> Pencil &middot; <span className="font-bold">E</span> Eraser &middot; <span className="font-bold">V</span> View</p>
                 <p><span className="font-bold">1/2/3</span> Size presets</p>
+                <p><span className="font-bold">Dbl-click</span> Centre &amp; rotate</p>
               </div>
             </div>
           </div>

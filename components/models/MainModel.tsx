@@ -2,7 +2,7 @@ import React from 'react'
 import { useGLTF } from '@react-three/drei'
 
 export function Model(props: JSX.IntrinsicElements['group']) {
-  const { scene } = useGLTF('/MAIN_GTO_GROUND.glb')
+  const { scene } = useGLTF('/MAIN_GTO_GROUND1.glb')
 
   return (
     <group {...props} dispose={null}>
@@ -11,4 +11,4 @@ export function Model(props: JSX.IntrinsicElements['group']) {
   )
 }
 
-useGLTF.preload('/MAIN_GTO_GROUND.glb')
+useGLTF.preload('/MAIN_GTO_GROUND1.glb')

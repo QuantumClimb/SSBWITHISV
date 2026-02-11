@@ -2,6 +2,7 @@
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import { EffectComposer, SMAA } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { Path3D, ToolMode } from '../types';
@@ -127,6 +128,37 @@ function computePathBounds(path: Path3D): PathBounds {
   return { cx, cy, cz, radius: Math.sqrt(maxRSq) };
 }
 
+// Smoothly animates OrbitControls target to a new point
+const SmoothTarget = ({ controlsRef, targetPoint }: {
+  controlsRef: React.RefObject<any>;
+  targetPoint: THREE.Vector3 | null;
+}) => {
+  const animating = useRef(false);
+  const startTarget = useRef(new THREE.Vector3());
+  const endTarget = useRef(new THREE.Vector3());
+  const progress = useRef(0);
+
+  useEffect(() => {
+    if (targetPoint && controlsRef.current) {
+      startTarget.current.copy(controlsRef.current.target);
+      endTarget.current.copy(targetPoint);
+      progress.current = 0;
+      animating.current = true;
+    }
+  }, [targetPoint, controlsRef]);
+
+  useFrame(() => {
+    if (!animating.current || !controlsRef.current) return;
+    progress.current = Math.min(progress.current + 0.04, 1);
+    const t = 1 - Math.pow(1 - progress.current, 3); // ease-out cubic
+    controlsRef.current.target.lerpVectors(startTarget.current, endTarget.current, t);
+    controlsRef.current.update();
+    if (progress.current >= 1) animating.current = false;
+  });
+
+  return null;
+};
+
 const ModelWithAnnotations = ({
   activeTool,
   onAddPath3D,
@@ -134,7 +166,8 @@ const ModelWithAnnotations = ({
   currentColor,
   pencilWidth,
   eraserWidth,
-  paths3D
+  paths3D,
+  onSetTarget
 }: {
   activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
@@ -143,6 +176,7 @@ const ModelWithAnnotations = ({
   pencilWidth: number;
   eraserWidth: number;
   paths3D: Path3D[];
+  onSetTarget: (point: THREE.Vector3) => void;
 }) => {
   const modelGroupRef = useRef<THREE.Group>(null);
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
@@ -266,6 +300,14 @@ const ModelWithAnnotations = ({
     }
   }, [activeTool, getSurfacePoint, eraseAt]);
 
+  const handleDoubleClick = useCallback((e: any) => {
+    if (activeTool !== 'view') return;
+    e.stopPropagation();
+    if (e.point) {
+      onSetTarget(e.point.clone());
+    }
+  }, [activeTool, onSetTarget]);
+
   const handlePointerMove = useCallback((e: any) => {
     const now = performance.now();
 
@@ -324,15 +366,17 @@ const ModelWithAnnotations = ({
       <MainModel
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
+        onDoubleClick={handleDoubleClick}
       />
 
       {/* Ground plane - also drawable with 3D pencil */}
       {/* eslint-disable-next-line react/no-unknown-property */}
-      <mesh 
-        position={[0, -0.65, 0]} 
+      <mesh
+        position={[0, -0.65, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
+        onDoubleClick={handleDoubleClick}
       >
         {/* eslint-disable-next-line react/no-unknown-property */}
         <planeGeometry args={[200, 200]} />
@@ -381,6 +425,8 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   eraserWidth
 }) => {
   const lightRef = useRef<THREE.DirectionalLight>(null);
+  const controlsRef = useRef<any>(null);
+  const [orbitTarget, setOrbitTarget] = useState<THREE.Vector3 | null>(null);
   const [directionalIntensity, setDirectionalIntensity] = useState(1);
   const [ambientIntensity, setAmbientIntensity] = useState(0.35);
 
@@ -459,15 +505,15 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             resolution={256}
             color="#000000"
           />
-          <ModelWithAnnotations 
-
-              activeTool={activeTool} 
+          <ModelWithAnnotations
+              activeTool={activeTool}
               onAddPath3D={onAddPath3D}
               onRemovePath3D={onRemovePath3D}
               currentColor={currentColor}
               pencilWidth={pencilWidth}
               eraserWidth={eraserWidth}
               paths3D={paths3D}
+              onSetTarget={setOrbitTarget}
             />
             <LineGroup paths3D={paths3D} />
           <Environment preset="sunset" />
@@ -478,9 +524,11 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           <SMAA />
         </EffectComposer>
 
-        <OrbitControls 
-          enabled={activeTool === 'view'} 
-          makeDefault 
+        <SmoothTarget controlsRef={controlsRef} targetPoint={orbitTarget} />
+        <OrbitControls
+          ref={controlsRef}
+          enabled={activeTool === 'view'}
+          makeDefault
           enableDamping
           dampingFactor={0.08}
           rotateSpeed={1}
