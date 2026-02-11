@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { MousePointer2, Pencil, Trash2, Undo2, Eraser, MoveHorizontal, Box, ChevronDown, ChevronUp, Circle } from 'lucide-react';
+import { MousePointer2, Pencil, Trash2, Eraser, Box, ChevronDown, ChevronUp, Circle } from 'lucide-react';
 import { ToolMode } from '../types';
 
 interface ToolbarProps {
@@ -8,7 +8,6 @@ interface ToolbarProps {
   onToggleDrawMode: () => void;
   onSelectTool: (tool: ToolMode) => void;
   onClear: () => void;
-  onUndo: () => void;
   color: string;
   onColorChange: (color: string) => void;
   pencilWidth: number;
@@ -43,7 +42,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onToggleDrawMode,
   onSelectTool,
   onClear,
-  onUndo,
   color,
   onColorChange,
   pencilWidth,
@@ -78,12 +76,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
           e.preventDefault();
           onSelectTool('view');
           break;
-        case 'z':
-          if (e.ctrlKey || e.metaKey) onUndo();
-          break;
-        case 'c':
-          if (e.ctrlKey || e.metaKey) onClear();
-          break;
         case '1':
           e.preventDefault();
           setWidth(isEraser ? 30 : 2);
@@ -101,7 +93,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onSelectTool, setWidth, isEraser, onUndo, onClear]);
+  }, [onSelectTool, setWidth, isEraser]);
 
   return (
     <>
@@ -229,32 +221,21 @@ const Toolbar: React.FC<ToolbarProps> = ({
             {/* Actions */}
             <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
               <button
-                onClick={onUndo}
-                className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:bg-white/10 transition-all text-sm font-semibold"
-                title="Undo last stroke (Ctrl+Z)"
-              >
-                <Undo2 size={18} />
-                <span>Undo</span>
-                <span className="text-xs text-white/50 ml-auto">Ctrl+Z</span>
-              </button>
-              <button
                 onClick={onClear}
                 className="flex items-center gap-3 px-4 py-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all text-sm font-semibold"
-                title="Clear all annotations (Ctrl+C)"
+                title="Clear all annotations"
               >
                 <Trash2 size={18} />
-                <span>Clear</span>
-                <span className="text-xs text-white/50 ml-auto">Ctrl+C</span>
+                <span>Clear All</span>
               </button>
             </div>
 
             {/* Keyboard Hints */}
             <div className="text-[10px] text-zinc-500 bg-white/5 p-3 rounded-lg border border-white/10">
-              <p className="font-mono font-bold mb-1.5">Keyboard Shortcuts</p>
+              <p className="font-mono font-bold mb-1.5">Shortcuts</p>
               <div className="space-y-1 text-white/70">
-                <p><span className="font-bold">P</span> - Pencil</p>
-                <p><span className="font-bold">E</span> - Eraser</p>
-                <p><span className="font-bold">1/2/3</span> - Size</p>
+                <p><span className="font-bold">P</span> Pencil &middot; <span className="font-bold">E</span> Eraser &middot; <span className="font-bold">V</span> View</p>
+                <p><span className="font-bold">1/2/3</span> Size presets</p>
               </div>
             </div>
           </div>
@@ -336,23 +317,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
           <div className="h-[1px] w-10 bg-white/10 my-1 flex-shrink-0" />
 
-          <div className="flex flex-col items-center gap-1">
-            <button
-              onClick={onUndo}
-              className="p-4 text-zinc-400 active:text-white rounded-2xl hover:bg-white/5 transition-all"
-              title="Undo (Ctrl+Z)"
-            >
-              <Undo2 size={24} />
-            </button>
-
-            <button
-              onClick={onClear}
-              className="p-4 text-red-500 active:bg-red-500/20 rounded-2xl hover:bg-red-500/10 transition-all"
-              title="Clear all (Ctrl+C)"
-            >
-              <Trash2 size={24} />
-            </button>
-          </div>
+          <button
+            onClick={onClear}
+            className="p-4 text-red-500 active:bg-red-500/20 rounded-2xl hover:bg-red-500/10 transition-all"
+            title="Clear all"
+          >
+            <Trash2 size={24} />
+          </button>
         </div>
       </div>
     </>

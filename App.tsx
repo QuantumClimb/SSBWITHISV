@@ -33,14 +33,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const undoLastPath = useCallback(() => {
-    if (tool === 'pencil3d' || tool === 'eraser3d') {
-      setPaths3D((prev) => prev.slice(0, -1));
-    } else {
-      setPaths((prev) => prev.slice(0, -1));
-    }
-  }, [tool]);
-
   const addPath = useCallback((newPath: Path) => {
     setPaths((prev) => [...prev, newPath]);
   }, []);
@@ -87,12 +79,11 @@ const App: React.FC = () => {
       />
 
       {/* UI Controls Overlay */}
-      <Toolbar 
+      <Toolbar
         tool={tool}
         onToggleDrawMode={toggleDrawMode}
         onSelectTool={selectTool}
         onClear={clearAnnotations}
-        onUndo={undoLastPath}
         color={color}
         onColorChange={setColor}
         pencilWidth={pencilWidth}

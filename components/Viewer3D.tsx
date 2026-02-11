@@ -1,26 +1,11 @@
 
-import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows, Stats } from '@react-three/drei';
-import { EffectComposer, SSAO, SMAA } from '@react-three/postprocessing';
+import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows } from '@react-three/drei';
+import { EffectComposer, SMAA } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { Path3D, ToolMode } from '../types';
-import * as Models from './models';
-
-// Import all models
-const {
-  Ground,
-  CT: Ct,
-  HGT: Hgt,
-  CT_AUX: CtAux,
-  IND_OBS: IndObs,
-  Gate,
-  Pathway,
-  FGT: Fgt,
-  L_OBS: LObs,
-  PGT_BASE: PgtBase,
-  Trees,
-} = Models;
+import { MainModel } from './models';
 
 
 interface Viewer3DProps {
@@ -44,6 +29,36 @@ const Loader = () => (
     </div>
   </Html>
 );
+
+// Memoized Line renderer for optimized 3D path rendering
+const LineGroup = memo(({ paths3D }: { paths3D: Path3D[] }) => {
+  // Memoize Vector3 arrays to avoid recreating them
+  const vectorArrays = useMemo(() => {
+    return paths3D.map(path => ({
+      id: path.id,
+      points: path.points.map(p => new THREE.Vector3(p.x, p.y, p.z)),
+      color: path.color,
+      width: path.width
+    }));
+  }, [paths3D]);
+
+  return (
+    <>
+      {vectorArrays.map((pathData) => (
+        <Line
+          key={pathData.id}
+          points={pathData.points}
+          color={pathData.color}
+          lineWidth={pathData.width}
+          polygonOffset
+          polygonOffsetFactor={-15}
+        />
+      ))}
+    </>
+  );
+});
+
+LineGroup.displayName = 'LineGroup';
 
 // Custom gradient sky with deep blue to light blue
 const GradientSky = () => {
@@ -87,16 +102,41 @@ const GradientSky = () => {
 };
 
 
-const ModelWithAnnotations = ({ 
-  activeTool, 
-  onAddPath3D, 
+// Precomputed bounding sphere for fast collision rejection
+interface PathBounds {
+  cx: number;
+  cy: number;
+  cz: number;
+  radius: number;
+}
+
+function computePathBounds(path: Path3D): PathBounds {
+  const pts = path.points;
+  if (pts.length === 0) return { cx: 0, cy: 0, cz: 0, radius: 0 };
+  let cx = 0, cy = 0, cz = 0;
+  for (let i = 0; i < pts.length; i++) {
+    cx += pts[i].x; cy += pts[i].y; cz += pts[i].z;
+  }
+  cx /= pts.length; cy /= pts.length; cz /= pts.length;
+  let maxRSq = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const dx = pts[i].x - cx, dy = pts[i].y - cy, dz = pts[i].z - cz;
+    const dSq = dx * dx + dy * dy + dz * dz;
+    if (dSq > maxRSq) maxRSq = dSq;
+  }
+  return { cx, cy, cz, radius: Math.sqrt(maxRSq) };
+}
+
+const ModelWithAnnotations = ({
+  activeTool,
+  onAddPath3D,
   onRemovePath3D,
-  currentColor, 
+  currentColor,
   pencilWidth,
   eraserWidth,
   paths3D
-}: { 
-  activeTool: ToolMode; 
+}: {
+  activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
   onRemovePath3D: (id: string) => void;
   currentColor: string;
@@ -111,6 +151,15 @@ const ModelWithAnnotations = ({
   const lastHoverTimeRef = useRef(0);
   const OFFSET_DISTANCE = 0.015;
   const HOVER_THROTTLE_MS = 16; // ~60fps
+
+  // Precompute bounding spheres for all paths — only recalculated when paths change
+  const boundsMap = useMemo(() => {
+    const map = new Map<string, PathBounds>();
+    for (const path of paths3D) {
+      map.set(path.id, computePathBounds(path));
+    }
+    return map;
+  }, [paths3D]);
 
   const createToonMaterial = useCallback((material: THREE.Material) => {
     const source = material as any;
@@ -148,8 +197,8 @@ const ModelWithAnnotations = ({
       if (!(object instanceof THREE.Mesh)) return;
       if ((object as any).userData?.skipToon) return;
 
-      object.castShadow = true;
-      object.receiveShadow = true;
+      object.castShadow = false;
+      object.receiveShadow = false;
 
       if (Array.isArray(object.material)) {
         object.material = object.material.map((mat) => createToonMaterial(mat));
@@ -168,6 +217,40 @@ const ModelWithAnnotations = ({
     return { point, normal };
   }, []);
 
+  // Bounding-sphere first, then point-level check
+  const checkPathIntersection = useCallback((path: Path3D, px: number, py: number, pz: number, radius: number): boolean => {
+    const bounds = boundsMap.get(path.id);
+    if (!bounds) return false;
+
+    // Fast rejection: bounding sphere vs eraser sphere
+    const dx0 = bounds.cx - px;
+    const dy0 = bounds.cy - py;
+    const dz0 = bounds.cz - pz;
+    const combinedR = bounds.radius + radius;
+    if (dx0 * dx0 + dy0 * dy0 + dz0 * dz0 > combinedR * combinedR) return false;
+
+    // Detailed check — iterate with early exit
+    const radiusSq = radius * radius;
+    const pts = path.points;
+    for (let i = 0; i < pts.length; i++) {
+      const dx = pts[i].x - px;
+      const dy = pts[i].y - py;
+      const dz = pts[i].z - pz;
+      if (dx * dx + dy * dy + dz * dz < radiusSq) return true;
+    }
+    return false;
+  }, [boundsMap]);
+
+  const eraseAt = useCallback((point: THREE.Vector3) => {
+    const eraserRadius = eraserWidth / 40;
+    const px = point.x, py = point.y, pz = point.z;
+    for (let i = 0; i < paths3D.length; i++) {
+      if (checkPathIntersection(paths3D[i], px, py, pz, eraserRadius)) {
+        onRemovePath3D(paths3D[i].id);
+      }
+    }
+  }, [paths3D, eraserWidth, checkPathIntersection, onRemovePath3D]);
+
   const handlePointerDown = useCallback((e: any) => {
     if (activeTool === 'pencil3d') {
       e.stopPropagation();
@@ -179,21 +262,13 @@ const ModelWithAnnotations = ({
     } else if (activeTool === 'eraser3d') {
       e.stopPropagation();
       isDrawing3D.current = true;
-      const clickPoint = e.point;
-      paths3D.forEach(path => {
-        const isNear = path.points.some(p => {
-          const v = new THREE.Vector3(p.x, p.y, p.z);
-          return v.distanceTo(clickPoint) < (eraserWidth / 40); 
-        });
-        if (isNear) onRemovePath3D(path.id);
-      });
+      eraseAt(e.point);
     }
-  }, [activeTool, paths3D, eraserWidth, onRemovePath3D, getSurfacePoint]);
+  }, [activeTool, getSurfacePoint, eraseAt]);
 
   const handlePointerMove = useCallback((e: any) => {
     const now = performance.now();
-    
-    // Throttle hover info updates (60fps max)
+
     if (now - lastHoverTimeRef.current > HOVER_THROTTLE_MS) {
       const surface = getSurfacePoint(e);
       if (surface) {
@@ -201,34 +276,23 @@ const ModelWithAnnotations = ({
       }
       lastHoverTimeRef.current = now;
     }
-    
+
     if (isDrawing3D.current) {
       e.stopPropagation();
-      const surface = getSurfacePoint(e);
-      
-      if (activeTool === 'pencil3d' && surface) {
-        const lastPoint = currentPoints.at(-1);
-        if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
-          setCurrentPoints(prev => [...prev, surface.point]);
+
+      if (activeTool === 'pencil3d') {
+        const surface = getSurfacePoint(e);
+        if (surface) {
+          const lastPoint = currentPoints.at(-1);
+          if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
+            setCurrentPoints(prev => [...prev, surface.point]);
+          }
         }
       } else if (activeTool === 'eraser3d') {
-        const movePoint = e.point;
-        const eraserRadius = eraserWidth / 40;
-        const eraserRadiusSq = eraserRadius * eraserRadius; // Avoid sqrt in loop
-        
-        // Optimized: Only check paths that could possibly intersect
-        paths3D.forEach(path => {
-          const isNear = path.points.some(p => {
-            const dx = p.x - movePoint.x;
-            const dy = p.y - movePoint.y;
-            const dz = p.z - movePoint.z;
-            return (dx * dx + dy * dy + dz * dz) < eraserRadiusSq; // Compare squared distances
-          });
-          if (isNear) onRemovePath3D(path.id);
-        });
+        eraseAt(e.point);
       }
     }
-  }, [activeTool, currentPoints, paths3D, eraserWidth, onRemovePath3D, getSurfacePoint, HOVER_THROTTLE_MS]);
+  }, [activeTool, currentPoints, getSurfacePoint, eraseAt]);
 
   useEffect(() => {
     const handleGlobalUp = () => {
@@ -257,48 +321,7 @@ const ModelWithAnnotations = ({
 
   return (
     <group ref={modelGroupRef} onPointerLeave={() => setHoverInfo(null)}>
-      {/* All model components */}
-      <Ground 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <Ct 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <Hgt 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <CtAux 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <IndObs 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <Gate 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <Pathway 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <Fgt 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <LObs 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <PgtBase 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-      />
-      <Trees 
+      <MainModel
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
       />
@@ -431,9 +454,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             position={[0, -0.19, 0]}
             opacity={0.35}
             scale={200}
-            blur={1.5}
+            blur={1}
             far={25}
-            resolution={512}
+            resolution={256}
             color="#000000"
           />
           <ModelWithAnnotations 
@@ -446,25 +469,11 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               eraserWidth={eraserWidth}
               paths3D={paths3D}
             />
-            {paths3D.map((path) => (
-              <Line
-                key={path.id}
-                points={path.points.map(p => new THREE.Vector3(p.x, p.y, p.z))}
-                color={path.color}
-                lineWidth={path.width}
-                polygonOffset
-                polygonOffsetFactor={-15}
-              />
-            ))}
+            <LineGroup paths3D={paths3D} />
           <Environment preset="sunset" />
         </Suspense>
 
-        {/* Performance monitoring disabled for production - uncomment to debug */}
-        {/* <Stats /> */}
-
         <EffectComposer multisampling={4} enableNormalPass>
-          {/* eslint-disable-next-line react/no-unknown-property */}
-          <SSAO samples={8} radius={0.3} intensity={10} luminanceInfluence={0.4} color={new THREE.Color('black')} />
           {/* eslint-disable-next-line react/no-unknown-property */}
           <SMAA />
         </EffectComposer>
