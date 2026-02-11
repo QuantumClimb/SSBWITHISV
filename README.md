@@ -4,18 +4,29 @@ A 3D annotation and training application for visualizing and annotating 3D model
 
 ## Features
 
-- **3D Model Viewing**: Load and interact with multiple 3D model chunks
-- **Annotation Tools**: 
+- **3D Model Viewing**: Load and interact with an optimised single-file GLB model
+- **Annotation Tools**:
   - 2D screen-space drawing (pencil, eraser)
-  - 3D surface annotation with automatic positioning
-- **Camera Controls**: Orbit controls with zoom limits and ground constraints
-- **Real-time Lighting**: Directional light with shadows and sunset environment
+  - 3D surface annotation with automatic surface-offset positioning
+- **Camera Controls**: Orbit controls with double-click to re-centre on any surface point
+- **Real-time Lighting**: Adjustable directional and ambient lighting with sunset environment
+- **Post-processing**: SMAA anti-aliasing
 - **Authentication**: Secure login system
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| **P** | Pencil tool |
+| **E** | Eraser tool |
+| **V** | View mode |
+| **1 / 2 / 3** | Size presets |
+| **Double-click** | Centre & rotate camera on point |
 
 ## Tech Stack
 
 - **Frontend**: React 19 with TypeScript
-- **3D Rendering**: Three.js 0.170 + React Three Fiber + Drei
+- **3D Rendering**: Three.js + React Three Fiber + Drei
 - **Build Tool**: Vite 6
 - **Styling**: Tailwind CSS v4
 - **Deployment**: Vercel with Git LFS support
@@ -49,13 +60,17 @@ Large model files (`.glb`) are managed via Git LFS for efficient storage and dep
 
 ```
 ├── components/
-│   ├── Login.tsx           # Authentication component
-│   ├── Viewer3D.tsx        # 3D scene and model rendering
-│   ├── AnnotationCanvas.tsx # 2D overlay drawing
-│   └── Toolbar.tsx         # Tool selection UI
-├── public/                 # 3D model files (.glb)
-├── App.tsx                 # Main application logic
-└── types.ts                # TypeScript type definitions
+│   ├── models/
+│   │   ├── MainModel.tsx      # Single optimised GLB model loader
+│   │   └── index.ts           # Model exports
+│   ├── Login.tsx              # Authentication component
+│   ├── Viewer3D.tsx           # 3D scene, camera targeting, annotations
+│   ├── AnnotationCanvas.tsx   # 2D overlay drawing
+│   └── Toolbar.tsx            # Tool selection UI with shortcuts
+├── public/
+│   └── MAIN_GTO_GROUND1.glb  # Optimised 3D model
+├── App.tsx                    # Main application logic
+└── types.ts                   # TypeScript type definitions
 ```
 
 ## License
