@@ -8,8 +8,9 @@ import { Path, Path3D, ToolMode } from './types';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isPlayerMode, setIsPlayerMode] = useState(false);
   const [tool, setTool] = useState<ToolMode>('view');
-  const [color, setColor] = useState('#ef4444');
+  const [color, setColor] = useState('#007acc');
   const [pencilWidth, setPencilWidth] = useState(4);
   const [eraserWidth, setEraserWidth] = useState(40);
   const [paths, setPaths] = useState<Path[]>([]);
@@ -17,10 +18,6 @@ const App: React.FC = () => {
 
   const is2DDrawingMode = tool === 'pencil' || tool === 'eraser';
   const is3DDrawingMode = tool === 'pencil3d' || tool === 'eraser3d';
-
-  const toggleDrawMode = useCallback(() => {
-    setTool((prev) => (prev === 'view' ? 'pencil' : 'view'));
-  }, []);
 
   const selectTool = useCallback((newTool: ToolMode) => {
     setTool(newTool);
@@ -59,6 +56,7 @@ const App: React.FC = () => {
       <Viewer3D 
         isDrawingMode={is3DDrawingMode} 
         activeTool={tool}
+        isPlayerMode={isPlayerMode}
         paths3D={paths3D}
         onAddPath3D={addPath3D}
         onRemovePath3D={removePath3D}
@@ -81,7 +79,6 @@ const App: React.FC = () => {
       {/* UI Controls Overlay */}
       <Toolbar
         tool={tool}
-        onToggleDrawMode={toggleDrawMode}
         onSelectTool={selectTool}
         onClear={clearAnnotations}
         color={color}
@@ -90,6 +87,8 @@ const App: React.FC = () => {
         onPencilWidthChange={setPencilWidth}
         eraserWidth={eraserWidth}
         onEraserWidthChange={setEraserWidth}
+        isPlayerMode={isPlayerMode}
+        onTogglePlayerMode={() => setIsPlayerMode(prev => !prev)}
       />
 
       {/* Overlay for instructions */}
