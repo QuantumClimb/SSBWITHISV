@@ -96,13 +96,6 @@ const App: React.FC = () => {
         <h1 className="text-white text-xl font-bold tracking-tight drop-shadow-lg">
           <span className="text-blue-500">SSBWITHISV</span>
         </h1>
-        <p className="text-zinc-400 text-sm drop-shadow-md">
-          {tool === 'pencil' && '2D Drawing: Annotating screen space.'}
-          {tool === 'pencil3d' && '3D Drawing: Click and drag on model.'}
-          {tool === 'eraser' && '2D Eraser: Remove screen annotations.'}
-          {tool === 'eraser3d' && '3D Eraser: Click 3D lines to remove them.'}
-          {tool === 'view' && 'Virtual GTO Trainer'}
-        </p>
       </div>
     </div>
   );

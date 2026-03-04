@@ -1,14 +1,16 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows, useTexture, Grid } from '@react-three/drei';
+import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows, useTexture } from '@react-three/drei';
 import { EffectComposer, SMAA as Smaa } from '@react-three/postprocessing';
 import { Wrench } from 'lucide-react';
 import * as THREE from 'three';
+import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
+import simplify from 'simplify-js';
 import { Path3D, ToolMode } from '../types';
 import { MainModel } from './models';
 import { nearestPaletteColor, shaderTheme } from './shaders/globalShaderTheme';
-import { createGroundBlendTexture, createGroundMaterial, createSkyMaterial } from './shaders/materialFactories';
+import { createSkyMaterial } from './shaders/materialFactories';
 
 
 interface Viewer3DProps {
@@ -24,6 +26,56 @@ interface Viewer3DProps {
 }
 
 type AxisIndex = 0 | 1 | 2;
+
+type SimplifyPoint = {
+  x: number;
+  y: number;
+  index: number;
+};
+
+let bvhPatched = false;
+
+const ensureBvhRaycastAcceleration = () => {
+  if (bvhPatched) return;
+  (THREE.BufferGeometry.prototype as any).computeBoundsTree = computeBoundsTree;
+  (THREE.BufferGeometry.prototype as any).disposeBoundsTree = disposeBoundsTree;
+  (THREE.Mesh.prototype as any).raycast = acceleratedRaycast;
+  bvhPatched = true;
+};
+
+const simplifyPointCloud3D = (points: THREE.Vector3[], tolerance: number) => {
+  if (points.length <= 2) return points;
+
+  const toPair = (
+    getX: (point: THREE.Vector3) => number,
+    getY: (point: THREE.Vector3) => number
+  ): SimplifyPoint[] => {
+    return points.map((point, index) => ({
+      x: getX(point),
+      y: getY(point),
+      index,
+    }));
+  };
+
+  const xy = simplify(toPair((point) => point.x, (point) => point.y), tolerance, false) as SimplifyPoint[];
+  const yz = simplify(toPair((point) => point.y, (point) => point.z), tolerance, false) as SimplifyPoint[];
+  const xz = simplify(toPair((point) => point.x, (point) => point.z), tolerance, false) as SimplifyPoint[];
+
+  const keep = new Set<number>();
+  keep.add(0);
+  keep.add(points.length - 1);
+
+  for (const item of xy) keep.add(item.index);
+  for (const item of yz) keep.add(item.index);
+  for (const item of xz) keep.add(item.index);
+
+  const ordered = [...keep].sort((first, second) => first - second);
+  if (ordered.length <= 2) {
+    return [points[0], points.at(-1) ?? points[0]];
+  }
+
+  return ordered.map((index) => points[index]);
+};
 
 const Loader = () => (
   <Html center>
@@ -294,15 +346,6 @@ const ModelWithAnnotations = ({
   const lastHoverTimeRef = useRef(0);
   const OFFSET_DISTANCE = 0.015;
   const HOVER_THROTTLE_MS = 16; // ~60fps
-  const groundTexture = useMemo(() => createGroundBlendTexture(), []);
-  const groundMaterial = useMemo(() => createGroundMaterial(groundTexture), [groundTexture]);
-
-  useEffect(() => {
-    return () => {
-      groundMaterial.dispose();
-      groundTexture.dispose();
-    };
-  }, [groundMaterial, groundTexture]);
 
   // Precompute bounding spheres for all paths — only recalculated when paths change
   const boundsMap = useMemo(() => {
@@ -353,6 +396,14 @@ const ModelWithAnnotations = ({
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       if ((object as any).userData?.skipToon) return;
+
+      const geometry = object.geometry as THREE.BufferGeometry & {
+        boundsTree?: unknown;
+        computeBoundsTree?: () => void;
+      };
+      if (geometry && !geometry.boundsTree && typeof geometry.computeBoundsTree === 'function') {
+        geometry.computeBoundsTree();
+      }
 
       const quantizeToModelPalette = false;
 
@@ -450,24 +501,29 @@ const ModelWithAnnotations = ({
       if (activeTool === 'pencil3d') {
         const surface = getSurfacePoint(e);
         if (surface) {
-          const lastPoint = currentPoints.at(-1);
-          if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
-            setCurrentPoints(prev => [...prev, surface.point]);
-          }
+          setCurrentPoints((prev) => {
+            const lastPoint = prev.at(-1);
+            if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
+              return [...prev, surface.point];
+            }
+            return prev;
+          });
         }
       } else if (activeTool === 'eraser3d') {
         eraseAt(e.point);
       }
     }
-  }, [activeTool, currentPoints, getSurfacePoint, eraseAt]);
+  }, [activeTool, getSurfacePoint, eraseAt]);
 
   useEffect(() => {
     const handleGlobalUp = () => {
       if (isDrawing3D.current) {
         if (currentPoints.length > 1 && activeTool === 'pencil3d') {
+          const simplifyTolerance = Math.min(0.01, Math.max(0.002, pencilWidth / 1000));
+          const simplifiedPoints = simplifyPointCloud3D(currentPoints, simplifyTolerance);
           onAddPath3D({
             id: Math.random().toString(36).substring(2, 11),
-            points: currentPoints.map(p => ({ x: p.x, y: p.y, z: p.z })),
+            points: simplifiedPoints.map(p => ({ x: p.x, y: p.y, z: p.z })),
             color: currentColor,
             width: pencilWidth
           });
@@ -486,30 +542,46 @@ const ModelWithAnnotations = ({
     }
   }, [applyToonMaterial]);
 
-  return (
-    <group ref={modelGroupRef} scale={0.8} onPointerLeave={() => setHoverInfo(null)}>
-      <MainModel
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onDoubleClick={handleDoubleClick}
-      />
+  useEffect(() => {
+    return () => {
+      if (!modelGroupRef.current) return;
+      modelGroupRef.current.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const geometry = object.geometry as THREE.BufferGeometry & { disposeBoundsTree?: () => void };
+        if (typeof geometry.disposeBoundsTree === 'function') {
+          geometry.disposeBoundsTree();
+        }
+      });
+    };
+  }, []);
 
-      {/* Ground plane - also drawable with 3D pencil */}
-      {/* eslint-disable react/no-unknown-property */}
-      <mesh
-        position={[0, -0.65, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        userData={{ shaderSurface: 'terrain' }}
-        material={groundMaterial}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onDoubleClick={handleDoubleClick}
-      >
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <planeGeometry args={[200, 200]} />
-      </mesh>
-      {/* eslint-enable react/no-unknown-property */}
-      
+  return (
+    <>
+      <group ref={modelGroupRef} scale={1} onPointerLeave={() => setHoverInfo(null)}>
+        <MainModel
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onDoubleClick={handleDoubleClick}
+        />
+
+        {/* Ground plane - also drawable with 3D pencil */}
+        {/* eslint-disable react/no-unknown-property */}
+        <mesh
+          position={[0, -0.65, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          userData={{ shaderSurface: 'terrain' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onDoubleClick={handleDoubleClick}
+        >
+          {/* eslint-disable-next-line react/no-unknown-property */}
+          <planeGeometry args={[200, 200]} />
+          {/* eslint-disable-next-line react/no-unknown-property */}
+          <meshStandardMaterial color={shaderTheme.ground.dirt} roughness={0.95} metalness={0} />
+        </mesh>
+        {/* eslint-enable react/no-unknown-property */}
+      </group>
+
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
         // eslint-disable-next-line react/no-unknown-property
         <Sphere
@@ -536,7 +608,7 @@ const ModelWithAnnotations = ({
           polygonOffsetFactor={-15}
         />
       )}
-    </group>
+    </>
   );
 };
 
@@ -551,6 +623,10 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   pencilWidth,
   eraserWidth
 }) => {
+  useEffect(() => {
+    ensureBvhRaycastAcceleration();
+  }, []);
+
   const lightRef = useRef<THREE.DirectionalLight>(null);
   const controlsRef = useRef<any>(null);
   const playerRef = useRef<THREE.Group>(null);
@@ -561,14 +637,14 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [showSceneControls, setShowSceneControls] = useState(false);
   const [directionalIntensity, setDirectionalIntensity] = useState(1.45);
   const [ambientIntensity, setAmbientIntensity] = useState(0.5);
-  const [skyRotation, setSkyRotation] = useState<[number, number, number]>([0, 0, 0.11]);
-  const [skyScale, setSkyScale] = useState(125);
+  const [skyRotation, setSkyRotation] = useState<[number, number, number]>([0, 0, 0.0]);
+  const [skyScale, setSkyScale] = useState(220);
   const [fogEnabled, setFogEnabled] = useState(true);
   const [fogDistance, setFogDistance] = useState(480);
-  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([-90, 0, 0]);
+  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([-120, 0, 0]);
   const [cameraTarget, setCameraTarget] = useState<[number, number, number]>([0, 0, 0]);
-  const [maxOrbitDistance, setMaxOrbitDistance] = useState(80);
-  const [cameraFov, setCameraFov] = useState(60);
+  const [maxOrbitDistance, setMaxOrbitDistance] = useState(125);
+  const [cameraFov, setCameraFov] = useState(50);
 
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
@@ -784,10 +860,11 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       )}
 
       <Canvas 
-        camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 10000 }} 
+        camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }} 
         dpr={[1, 1.5]}
         style={{ touchAction: 'none' }}
-        onCreated={({ camera }) => {
+        onCreated={({ camera, raycaster }) => {
+          (raycaster as any).firstHitOnly = true;
           cameraRef.current = camera;
           if (camera instanceof THREE.PerspectiveCamera) {
             camera.fov = cameraFov;
@@ -814,20 +891,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           intensity={sunIntensity * directionalIntensity}
         />
         {/* eslint-enable react/no-unknown-property */}
-
-        <Grid
-          position={[0, -0.66, 0]}
-          args={[10, 10]}
-          cellSize={1}
-          cellThickness={0.6}
-          sectionSize={10}
-          sectionThickness={1.4}
-          sectionColor={shaderTheme.ground.dirt}
-          cellColor={shaderTheme.grass.base}
-          fadeDistance={250}
-          fadeStrength={1}
-          infiniteGrid
-        />
 
         {/* eslint-disable-next-line react/no-unknown-property */}
         <axesHelper args={[8]} position={cameraTarget} />
