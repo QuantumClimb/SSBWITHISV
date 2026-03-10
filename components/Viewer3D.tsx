@@ -2,14 +2,14 @@
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows, useTexture } from '@react-three/drei';
-import { EffectComposer, SMAA as Smaa } from '@react-three/postprocessing';
+import { EffectComposer, SMAA as Smaa, SSAO as SsaoEffect } from '@react-three/postprocessing';
 import { Wrench } from 'lucide-react';
 import * as THREE from 'three';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import simplify from 'simplify-js';
 import { Path3D, ToolMode } from '../types';
 import { MainModel } from './models';
-import { nearestPaletteColor, shaderTheme } from './shaders/globalShaderTheme';
+import { shaderTheme } from './shaders/globalShaderTheme';
 import { createSkyMaterial } from './shaders/materialFactories';
 
 
@@ -368,23 +368,27 @@ const ModelWithAnnotations = ({
     return map;
   }, [paths3D]);
 
-  const createToonMaterial = useCallback((material: THREE.Material, quantizeToModelPalette = false) => {
+  const upgradeToStandardMaterial = useCallback((material: THREE.Material) => {
     const source = material as any;
-    if (source.userData?.__isToon) return material as THREE.MeshToonMaterial;
+    if (source.userData?.__isStandard) return material as THREE.MeshStandardMaterial;
 
-    const sourceColor = source.color?.clone?.() ?? new THREE.Color('#ffffff');
-    const toonColor = quantizeToModelPalette
-      ? nearestPaletteColor(sourceColor, shaderTheme.model)
-      : sourceColor;
-
-    const toon = new THREE.MeshToonMaterial({
-      color: toonColor,
+    const std = new THREE.MeshStandardMaterial({
+      color: source.color?.clone?.() ?? new THREE.Color('#ffffff'),
       map: source.map ?? null,
       emissive: source.emissive?.clone?.() ?? new THREE.Color('#000000'),
       emissiveMap: source.emissiveMap ?? null,
+      emissiveIntensity: source.emissiveIntensity ?? 1,
       normalMap: source.normalMap ?? null,
       normalScale: source.normalScale?.clone?.(),
+      roughnessMap: source.roughnessMap ?? null,
+      roughness: source.roughness ?? 1,
+      metalnessMap: source.metalnessMap ?? null,
+      metalness: source.metalness ?? 0,
+      aoMap: source.aoMap ?? null,
+      aoMapIntensity: source.aoMapIntensity ?? 1,
       alphaMap: source.alphaMap ?? null,
+      envMap: source.envMap ?? null,
+      envMapIntensity: source.envMapIntensity ?? 1,
       transparent: source.transparent ?? false,
       opacity: source.opacity ?? 1,
       side: source.side ?? THREE.FrontSide,
@@ -393,21 +397,17 @@ const ModelWithAnnotations = ({
       depthTest: source.depthTest ?? true,
     });
 
-    if (source.skinning !== undefined) (toon as any).skinning = source.skinning;
-    if (source.morphTargets !== undefined) (toon as any).morphTargets = source.morphTargets;
-    if (source.morphNormals !== undefined) (toon as any).morphNormals = source.morphNormals;
-
-    (toon as any).userData = source.userData
-      ? { ...source.userData, __isToon: true }
-      : { __isToon: true };
-    toon.needsUpdate = true;
-    return toon;
+    std.userData = source.userData
+      ? { ...source.userData, __isStandard: true }
+      : { __isStandard: true };
+    std.needsUpdate = true;
+    return std;
   }, []);
 
-  const applyToonMaterial = useCallback((root: THREE.Object3D) => {
+  const applyStandardMaterial = useCallback((root: THREE.Object3D) => {
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
-      if ((object as any).userData?.skipToon) return;
+      if ((object as any).userData?.skipStandard) return;
 
       const geometry = object.geometry as THREE.BufferGeometry & {
         boundsTree?: unknown;
@@ -417,18 +417,16 @@ const ModelWithAnnotations = ({
         geometry.computeBoundsTree();
       }
 
-      const quantizeToModelPalette = false;
-
-      object.castShadow = false;
-      object.receiveShadow = false;
+      object.castShadow = true;
+      object.receiveShadow = true;
 
       if (Array.isArray(object.material)) {
-        object.material = object.material.map((mat) => createToonMaterial(mat, quantizeToModelPalette));
+        object.material = object.material.map((mat) => upgradeToStandardMaterial(mat));
       } else if (object.material) {
-        object.material = createToonMaterial(object.material, quantizeToModelPalette);
+        object.material = upgradeToStandardMaterial(object.material);
       }
     });
-  }, [createToonMaterial]);
+  }, [upgradeToStandardMaterial]);
 
   const getSurfacePoint = useCallback((e: any) => {
     if (!e.point || !e.face) return null;
@@ -549,9 +547,9 @@ const ModelWithAnnotations = ({
 
   useEffect(() => {
     if (modelGroupRef.current) {
-      applyToonMaterial(modelGroupRef.current);
+      applyStandardMaterial(modelGroupRef.current);
     }
-  }, [applyToonMaterial]);
+  }, [applyStandardMaterial]);
 
   // Sync live-line material colour when the user changes colour between strokes
   useEffect(() => {
@@ -615,6 +613,7 @@ const ModelWithAnnotations = ({
           position={[0, -0.65, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           userData={{ shaderSurface: 'terrain' }}
+          receiveShadow
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onDoubleClick={handleDoubleClick}
@@ -632,7 +631,7 @@ const ModelWithAnnotations = ({
         <Sphere
           args={[activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200, 8, 8]}
           position={hoverInfo.point}
-          userData={{ skipToon: true }}
+          userData={{ skipStandard: true }}
         >
           {/* eslint-disable react/no-unknown-property */}
           <meshBasicMaterial 
@@ -686,6 +685,11 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [cameraTarget, setCameraTarget] = useState<[number, number, number]>([0, 0, 0]);
   const [maxOrbitDistance, setMaxOrbitDistance] = useState(125);
   const [cameraFov, setCameraFov] = useState(50);
+
+  const [ssaoEnabled, setSsaoEnabled] = useState(true);
+  const [ssaoIntensity, setSsaoIntensity] = useState(5);
+  const [ssaoRadius, setSsaoRadius] = useState(0.1);
+  const [ssaoBias, setSsaoBias] = useState(0.025);
 
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
@@ -838,6 +842,53 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           </div>
 
           <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Ambient Occlusion</div>
+            <label className="flex items-center gap-2 text-[11px]">
+              <input
+                type="checkbox"
+                checked={ssaoEnabled}
+                onChange={(e) => setSsaoEnabled(e.target.checked)}
+                className="accent-[#007acc]"
+              />
+              <span>SSAO Enabled</span>
+            </label>
+            {ssaoEnabled && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] w-16 text-[#9d9d9d]">Intensity</span>
+                  <input
+                    type="range" min="0" max="20" step="0.5"
+                    value={ssaoIntensity}
+                    onChange={(e) => setSsaoIntensity(Number.parseFloat(e.target.value))}
+                    className="flex-1 accent-[#007acc]"
+                  />
+                  <span className="text-[11px] w-10 text-right">{ssaoIntensity.toFixed(1)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] w-16 text-[#9d9d9d]">Radius</span>
+                  <input
+                    type="range" min="0.01" max="0.5" step="0.01"
+                    value={ssaoRadius}
+                    onChange={(e) => setSsaoRadius(Number.parseFloat(e.target.value))}
+                    className="flex-1 accent-[#007acc]"
+                  />
+                  <span className="text-[11px] w-10 text-right">{ssaoRadius.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] w-16 text-[#9d9d9d]">Bias</span>
+                  <input
+                    type="range" min="0.001" max="0.1" step="0.001"
+                    value={ssaoBias}
+                    onChange={(e) => setSsaoBias(Number.parseFloat(e.target.value))}
+                    className="flex-1 accent-[#007acc]"
+                  />
+                  <span className="text-[11px] w-10 text-right">{ssaoBias.toFixed(3)}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
             <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Camera Axis</div>
             <div className="text-[11px] text-[#9d9d9d]">Position</div>
             <div className="grid grid-cols-3 gap-2">
@@ -903,6 +954,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       <Canvas 
         camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }} 
         dpr={[1, 1.5]}
+        shadows="soft"
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         style={{ touchAction: 'none' }}
         onCreated={({ camera, raycaster }) => {
@@ -931,6 +983,15 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           position={sunPosition}
           color={sunColor}
           intensity={sunIntensity * directionalIntensity}
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-near={10}
+          shadow-camera-far={600}
+          shadow-camera-left={-150}
+          shadow-camera-right={150}
+          shadow-camera-top={150}
+          shadow-camera-bottom={-150}
+          shadow-bias={-0.0005}
         />
         {/* eslint-enable react/no-unknown-property */}
 
@@ -939,15 +1000,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
         
         <Suspense fallback={<Loader />}>
-          <ContactShadows
-            position={[0, -0.19, 0]}
-            opacity={0.35}
-            scale={200}
-            blur={1}
-            far={25}
-            resolution={256}
-            color="#000000"
-          />
           
           {isPlayerMode && (
             <>
@@ -973,6 +1025,17 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         {/* SMAA skipped on touch devices — expensive full-screen pass on iPad */}
         {!isMobile && (
           <EffectComposer multisampling={4} enableNormalPass>
+            <SsaoEffect
+              samples={16}
+              radius={ssaoRadius}
+              intensity={ssaoEnabled ? ssaoIntensity : 0}
+              bias={ssaoBias}
+              luminanceInfluence={0.6}
+              distanceThreshold={0.125}
+              distanceFalloff={0.02}
+              rangeThreshold={0.0015}
+              rangeFalloff={0.01}
+            />
             {/* eslint-disable-next-line react/no-unknown-property */}
             <Smaa />
           </EffectComposer>
