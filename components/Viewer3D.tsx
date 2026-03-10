@@ -340,12 +340,24 @@ const ModelWithAnnotations = ({
   onSetTarget: (point: THREE.Vector3) => void;
 }) => {
   const modelGroupRef = useRef<THREE.Group>(null);
-  const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
+  // Ref instead of state: zero React re-renders during drawing hot path
+  const currentPointsRef = useRef<THREE.Vector3[]>([]);
+  const liveLineGeoRef = useRef<THREE.BufferGeometry | null>(null);
+  const liveLineMatRef = useRef<THREE.LineBasicMaterial | null>(null);
+  const liveLineObjRef = useRef<THREE.Line | null>(null);
+  // Lazy-initialize the live-line Three.js objects once; avoids re-creating on every re-render
+  if (!liveLineGeoRef.current) liveLineGeoRef.current = new THREE.BufferGeometry();
+  if (!liveLineMatRef.current) liveLineMatRef.current = new THREE.LineBasicMaterial({ polygonOffset: true, polygonOffsetFactor: -15 });
+  if (!liveLineObjRef.current) {
+    const _ll = new THREE.Line(liveLineGeoRef.current, liveLineMatRef.current);
+    _ll.visible = false;
+    liveLineObjRef.current = _ll;
+  }
   const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
   const isDrawing3D = useRef(false);
   const lastHoverTimeRef = useRef(0);
   const OFFSET_DISTANCE = 0.015;
-  const HOVER_THROTTLE_MS = 16; // ~60fps
+  const HOVER_THROTTLE_MS = 30; // ~33fps — reduced for iPad thermals/ProMotion
 
   // Precompute bounding spheres for all paths — only recalculated when paths change
   const boundsMap = useMemo(() => {
@@ -422,7 +434,9 @@ const ModelWithAnnotations = ({
     if (!e.point || !e.face) return null;
     const point = e.point.clone();
     const normal = e.face.normal.clone();
-    normal.applyQuaternion(e.object.quaternion);
+    // transformDirection applies the full world matrix (rotation + scale) and normalises,
+    // fixing jitter caused by non-uniform scale in glTF models.
+    normal.transformDirection(e.object.matrixWorld);
     point.add(normal.multiplyScalar(OFFSET_DISTANCE));
     return { point, normal };
   }, []);
@@ -467,7 +481,7 @@ const ModelWithAnnotations = ({
       const surface = getSurfacePoint(e);
       if (surface) {
         isDrawing3D.current = true;
-        setCurrentPoints([surface.point]);
+        currentPointsRef.current = [surface.point];
       }
     } else if (activeTool === 'eraser3d') {
       e.stopPropagation();
@@ -501,13 +515,10 @@ const ModelWithAnnotations = ({
       if (activeTool === 'pencil3d') {
         const surface = getSurfacePoint(e);
         if (surface) {
-          setCurrentPoints((prev) => {
-            const lastPoint = prev.at(-1);
-            if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
-              return [...prev, surface.point];
-            }
-            return prev;
-          });
+          const lastPoint = currentPointsRef.current.at(-1);
+          if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
+            currentPointsRef.current.push(surface.point);
+          }
         }
       } else if (activeTool === 'eraser3d') {
         eraseAt(e.point);
@@ -518,9 +529,9 @@ const ModelWithAnnotations = ({
   useEffect(() => {
     const handleGlobalUp = () => {
       if (isDrawing3D.current) {
-        if (currentPoints.length > 1 && activeTool === 'pencil3d') {
+        if (currentPointsRef.current.length > 1 && activeTool === 'pencil3d') {
           const simplifyTolerance = Math.min(0.01, Math.max(0.002, pencilWidth / 1000));
-          const simplifiedPoints = simplifyPointCloud3D(currentPoints, simplifyTolerance);
+          const simplifiedPoints = simplifyPointCloud3D(currentPointsRef.current, simplifyTolerance);
           onAddPath3D({
             id: Math.random().toString(36).substring(2, 11),
             points: simplifiedPoints.map(p => ({ x: p.x, y: p.y, z: p.z })),
@@ -529,12 +540,12 @@ const ModelWithAnnotations = ({
           });
         }
         isDrawing3D.current = false;
-        setCurrentPoints([]);
+        currentPointsRef.current = [];
       }
     };
     globalThis.addEventListener('pointerup', handleGlobalUp);
     return () => globalThis.removeEventListener('pointerup', handleGlobalUp);
-  }, [currentPoints, activeTool, currentColor, pencilWidth, onAddPath3D]);
+  }, [activeTool, currentColor, pencilWidth, onAddPath3D]);
 
   useEffect(() => {
     if (modelGroupRef.current) {
@@ -542,8 +553,17 @@ const ModelWithAnnotations = ({
     }
   }, [applyToonMaterial]);
 
+  // Sync live-line material colour when the user changes colour between strokes
+  useEffect(() => {
+    if (liveLineMatRef.current) {
+      liveLineMatRef.current.color.set(currentColor);
+    }
+  }, [currentColor]);
+
   useEffect(() => {
     return () => {
+      liveLineGeoRef.current?.dispose();
+      liveLineMatRef.current?.dispose();
       if (!modelGroupRef.current) return;
       modelGroupRef.current.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
@@ -554,6 +574,31 @@ const ModelWithAnnotations = ({
       });
     };
   }, []);
+
+  // Imperatively update the in-progress line geometry every frame — no React state involved
+  useFrame(() => {
+    if (!liveLineObjRef.current || !liveLineGeoRef.current) return;
+    const pts = currentPointsRef.current;
+    if (pts.length < 2) {
+      liveLineObjRef.current.visible = false;
+      return;
+    }
+    liveLineObjRef.current.visible = true;
+    const arr = new Float32Array(pts.length * 3);
+    for (let i = 0; i < pts.length; i++) {
+      arr[i * 3]     = pts[i].x;
+      arr[i * 3 + 1] = pts[i].y;
+      arr[i * 3 + 2] = pts[i].z;
+    }
+    const geo = liveLineGeoRef.current;
+    const existing = geo.getAttribute('position') as THREE.BufferAttribute | null;
+    if (existing?.array.length === arr.length) {
+      (existing.array as Float32Array).set(arr);
+      existing.needsUpdate = true;
+    } else {
+      geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    }
+  });
 
   return (
     <>
@@ -599,18 +644,14 @@ const ModelWithAnnotations = ({
         </Sphere>
       )}
 
-      {currentPoints.length > 1 && (
-        <Line
-          points={currentPoints}
-          color={currentColor}
-          lineWidth={pencilWidth}
-          polygonOffset
-          polygonOffsetFactor={-15}
-        />
-      )}
+      {/* Imperative live-line preview — geometry updated by useFrame, zero React re-renders during draw */}
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <primitive object={liveLineObjRef.current} />
     </>
   );
 };
+
+const isMobile = navigator.maxTouchPoints > 1;
 
 const Viewer3D: React.FC<Viewer3DProps> = ({ 
   isDrawingMode, 
@@ -862,6 +903,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       <Canvas 
         camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }} 
         dpr={[1, 1.5]}
+        gl={{ antialias: false, powerPreference: 'high-performance' }}
         style={{ touchAction: 'none' }}
         onCreated={({ camera, raycaster }) => {
           (raycaster as any).firstHitOnly = true;
@@ -928,10 +970,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           <Environment preset="sunset" />
         </Suspense>
 
-        <EffectComposer multisampling={4} enableNormalPass>
-          {/* eslint-disable-next-line react/no-unknown-property */}
-          <Smaa />
-        </EffectComposer>
+        {/* SMAA skipped on touch devices — expensive full-screen pass on iPad */}
+        {!isMobile && (
+          <EffectComposer multisampling={4} enableNormalPass>
+            {/* eslint-disable-next-line react/no-unknown-property */}
+            <Smaa />
+          </EffectComposer>
+        )}
 
         {!isPlayerMode && (
           <>
