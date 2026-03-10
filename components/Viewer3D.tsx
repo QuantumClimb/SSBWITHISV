@@ -1,8 +1,8 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Html, Line, Sphere, ContactShadows, useTexture } from '@react-three/drei';
-import { EffectComposer, SMAA as Smaa, SSAO as SsaoEffect } from '@react-three/postprocessing';
+import { OrbitControls, Environment, Html, Line, Sphere, AccumulativeShadows, RandomizedLight, useTexture } from '@react-three/drei';
+import { EffectComposer, SMAA as Smaa } from '@react-three/postprocessing';
 import { Wrench } from 'lucide-react';
 import * as THREE from 'three';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
@@ -675,7 +675,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [orbitTarget, setOrbitTarget] = useState<THREE.Vector3 | null>(null);
   const [playerPosition, setPlayerPosition] = useState(new THREE.Vector3(0, 1, 0));
   const [showSceneControls, setShowSceneControls] = useState(false);
-  const [directionalIntensity, setDirectionalIntensity] = useState(1.45);
+  const [directionalIntensity, setDirectionalIntensity] = useState(2.5);
   const [ambientIntensity, setAmbientIntensity] = useState(0.5);
   const [skyRotation, setSkyRotation] = useState<[number, number, number]>([0, 0, 0.0]);
   const [skyScale, setSkyScale] = useState(220);
@@ -685,11 +685,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [cameraTarget, setCameraTarget] = useState<[number, number, number]>([0, 0, 0]);
   const [maxOrbitDistance, setMaxOrbitDistance] = useState(125);
   const [cameraFov, setCameraFov] = useState(50);
-
-  const [ssaoEnabled, setSsaoEnabled] = useState(true);
-  const [ssaoIntensity, setSsaoIntensity] = useState(5);
-  const [ssaoRadius, setSsaoRadius] = useState(0.1);
-  const [ssaoBias, setSsaoBias] = useState(0.025);
 
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
@@ -842,53 +837,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           </div>
 
           <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Ambient Occlusion</div>
-            <label className="flex items-center gap-2 text-[11px]">
-              <input
-                type="checkbox"
-                checked={ssaoEnabled}
-                onChange={(e) => setSsaoEnabled(e.target.checked)}
-                className="accent-[#007acc]"
-              />
-              <span>SSAO Enabled</span>
-            </label>
-            {ssaoEnabled && (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] w-16 text-[#9d9d9d]">Intensity</span>
-                  <input
-                    type="range" min="0" max="20" step="0.5"
-                    value={ssaoIntensity}
-                    onChange={(e) => setSsaoIntensity(Number.parseFloat(e.target.value))}
-                    className="flex-1 accent-[#007acc]"
-                  />
-                  <span className="text-[11px] w-10 text-right">{ssaoIntensity.toFixed(1)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] w-16 text-[#9d9d9d]">Radius</span>
-                  <input
-                    type="range" min="0.01" max="0.5" step="0.01"
-                    value={ssaoRadius}
-                    onChange={(e) => setSsaoRadius(Number.parseFloat(e.target.value))}
-                    className="flex-1 accent-[#007acc]"
-                  />
-                  <span className="text-[11px] w-10 text-right">{ssaoRadius.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] w-16 text-[#9d9d9d]">Bias</span>
-                  <input
-                    type="range" min="0.001" max="0.1" step="0.001"
-                    value={ssaoBias}
-                    onChange={(e) => setSsaoBias(Number.parseFloat(e.target.value))}
-                    className="flex-1 accent-[#007acc]"
-                  />
-                  <span className="text-[11px] w-10 text-right">{ssaoBias.toFixed(3)}</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
             <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Camera Axis</div>
             <div className="text-[11px] text-[#9d9d9d]">Position</div>
             <div className="grid grid-cols-3 gap-2">
@@ -1019,23 +967,32 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               onSetTarget={setOrbitTarget}
             />
             <LineGroup paths3D={paths3D} />
+            <AccumulativeShadows
+              position={[0, -0.649, 0]}
+              scale={200}
+              temporal
+              frames={60}
+              alphaTest={0.75}
+              opacity={0.85}
+              color="#302010"
+              colorBlend={2}
+            >
+              <RandomizedLight
+                amount={8}
+                radius={40}
+                position={[130, 150, 130]}
+                intensity={1.5}
+                ambient={0.35}
+                bias={0.001}
+                castShadow
+              />
+            </AccumulativeShadows>
           <Environment preset="sunset" />
         </Suspense>
 
         {/* SMAA skipped on touch devices — expensive full-screen pass on iPad */}
         {!isMobile && (
-          <EffectComposer multisampling={4} enableNormalPass>
-            <SsaoEffect
-              samples={16}
-              radius={ssaoRadius}
-              intensity={ssaoEnabled ? ssaoIntensity : 0}
-              bias={ssaoBias}
-              luminanceInfluence={0.6}
-              distanceThreshold={0.125}
-              distanceFalloff={0.02}
-              rangeThreshold={0.0015}
-              rangeFalloff={0.01}
-            />
+          <EffectComposer multisampling={4}>
             {/* eslint-disable-next-line react/no-unknown-property */}
             <Smaa />
           </EffectComposer>
