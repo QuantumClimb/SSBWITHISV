@@ -12,5 +12,17 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, '.'),
     }
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-three': ['three', 'three-mesh-bvh', 'three-stdlib'],
+          'vendor-r3f': ['@react-three/fiber', '@react-three/drei'],
+          'vendor-postprocessing': ['@react-three/postprocessing', 'postprocessing'],
+        },
+      },
+    },
+  },
 });
