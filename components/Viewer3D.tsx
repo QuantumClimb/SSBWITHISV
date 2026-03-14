@@ -7,7 +7,7 @@ import { Wrench } from 'lucide-react';
 import * as THREE from 'three';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import simplify from 'simplify-js';
-import { Path3D, ToolMode } from '../types';
+import { Path3D, ToolMode, CameraMode } from '../types';
 import { MainModel } from './models';
 import { shaderTheme } from './shaders/globalShaderTheme';
 import { createSkyMaterial } from './shaders/materialFactories';
@@ -19,7 +19,7 @@ import { useThree } from '@react-three/fiber';
 interface Viewer3DProps {
   isDrawingMode: boolean;
   activeTool: ToolMode;
-  isPlayerMode: boolean;
+  cameraMode: CameraMode;
   paths3D: Path3D[];
   onAddPath3D: (path: Path3D) => void;
   onRemovePath3D: (id: string) => void;
@@ -122,12 +122,13 @@ const LineGroup = memo(({ paths3D }: { paths3D: Path3D[] }) => {
 
 LineGroup.displayName = 'LineGroup';
 
-// Third-person player controller
-const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
+// Third-person player controller with FBX animations
+const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections, cameraMode }: {
   playerRef: React.RefObject<THREE.Group | null>;
   onPlayerMove: (position: THREE.Vector3) => void;
   cameraYawRef: React.RefObject<number>;
   activeDirections: Set<MovementDirection>;
+  cameraMode: CameraMode;
 }) => {
   const keysPressed = useRef<{ [key: string]: boolean }>({});
 
@@ -146,7 +147,7 @@ const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
     };
   }, []);
 
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!playerRef.current) return;
 
     const keys = keysPressed.current;
@@ -161,8 +162,6 @@ const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
     const isBackward = keys['s'] || keys['arrowdown'] || activeDirections.has('backward');
     const isLeft = keys['a'] || keys['arrowleft'] || activeDirections.has('left');
     const isRight = keys['d'] || keys['arrowright'] || activeDirections.has('right');
-    const isStrafeLeft = keys['q'] || activeDirections.has('left'); // Overlapping with turn but useful
-    const isStrafeRight = keys['e'] || activeDirections.has('right');
     const isUp = activeDirections.has('up');
     const isDown = activeDirections.has('down');
 
@@ -173,20 +172,22 @@ const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
     // Movement vector calculation
     const movement = new THREE.Vector3(0, 0, 0);
 
-    // Forward/Backward logic
     if (isForward) movement.z -= 1;
     if (isBackward) movement.z += 1;
-
-    // Strafe logic (Q/E or gamepad integration)
-    // For gamepad, we'll treat horizontal as turning, but keyboard gets strafing
     if (keys['q']) movement.x -= 1;
     if (keys['e']) movement.x += 1;
 
-    if (movement.lengthSq() > 0) {
+    const isMoving = movement.lengthSq() > 0;
+
+    if (isMoving) {
       movement.normalize();
       movement.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
       movement.multiplyScalar(speed);
       playerRef.current.position.add(movement);
+      
+      // Face the direction of movement
+      const targetRotation = Math.atan2(movement.x, movement.z);
+      playerRef.current.rotation.y = targetRotation;
     }
 
     // Vertical movement
@@ -194,7 +195,8 @@ const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
       playerRef.current.position.y += verticalSpeed;
     }
     if (isDown) {
-      playerRef.current.position.y = Math.max(0.78, playerRef.current.position.y - verticalSpeed);
+      // Ground level is 0
+      playerRef.current.position.y = Math.max(0, playerRef.current.position.y - verticalSpeed);
     }
 
     // Clamp to field bounds (200x200 plane centered at origin)
@@ -204,34 +206,30 @@ const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
     onPlayerMove(playerRef.current.position.clone());
   });
 
+  // Initial position effect to avoid JSX overwrite
+  useEffect(() => {
+    if (playerRef.current) {
+      playerRef.current.position.set(0, 0, 0);
+    }
+  }, []);
+
   return (
     // eslint-disable-next-line react/no-unknown-property
-    <group ref={playerRef} position={[0, 0.78, 0]} scale={0.78}>
-      {/* Player body - capsule shape */}
-      {/* eslint-disable-next-line react/no-unknown-property */}
-      <mesh position={[0, 0, 0]}>
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <capsuleGeometry args={[0.3, 1.4, 8, 8]} />
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <meshStandardMaterial color={shaderTheme.model.blue} roughness={0.7} metalness={0.2} />
-      </mesh>
-      {/* Player head */}
-      {/* eslint-disable-next-line react/no-unknown-property */}
-      <mesh position={[0, 1, 0]}>
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <sphereGeometry args={[0.25, 16, 16]} />
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <meshStandardMaterial color={shaderTheme.model.white} roughness={0.6} metalness={0.3} />
+    <group ref={playerRef} visible={cameraMode !== 'fpv'}>
+      <mesh position={[0, 0.875, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.5, 1.75, 0.5]} />
+        <meshStandardMaterial color="#4488ff" />
       </mesh>
     </group>
   );
 };
 
-// Camera that follows the player in third-person view
-const PlayerCamera = ({ playerPosition, cameraRef, cameraYawRef }: {
+// Camera that follows the player in first or third person view
+const PlayerCamera = ({ playerPosition, cameraRef, cameraYawRef, cameraMode }: {
   playerPosition: THREE.Vector3;
   cameraRef: React.RefObject<THREE.Camera | null>;
   cameraYawRef: React.RefObject<number>;
+  cameraMode: CameraMode;
 }) => {
   const smoothPosition = useRef(new THREE.Vector3(0, 5, 8));
   const smoothLookAt = useRef(new THREE.Vector3(0, 0.8, 0));
@@ -239,19 +237,34 @@ const PlayerCamera = ({ playerPosition, cameraRef, cameraYawRef }: {
   useFrame(({ camera }) => {
     if (!playerPosition) return;
 
-    const offset = new THREE.Vector3(0, 3.5, 6);
-    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
-    const desiredPosition = playerPosition.clone().add(offset);
-    const desiredLookAt = playerPosition.clone();
-    desiredLookAt.y += 0.8;
+    if (cameraMode === 'fpv') {
+      // First person: at head height looking forward
+      const headOffset = 1.65; // Slightly below top of 1.75 height
+      camera.position.set(playerPosition.x, playerPosition.y + headOffset, playerPosition.z);
+      
+      const lookAtTarget = new THREE.Vector3(0, 0, -10);
+      lookAtTarget.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
+      lookAtTarget.add(camera.position);
+      camera.lookAt(lookAtTarget);
+      
+      // Sync smooth refs for when switching back to TPV
+      smoothPosition.current.copy(camera.position);
+      smoothLookAt.current.copy(lookAtTarget);
+    } else {
+      // Third person: offset behind
+      const offset = new THREE.Vector3(0, 4, 8); // Slightly higher and further for better view
+      offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
+      const desiredPosition = playerPosition.clone().add(offset);
+      const desiredLookAt = playerPosition.clone();
+      desiredLookAt.y += 1.5; // Look at upper body
 
-    // Smooth exponential damping for position (higher factor = smoother)
-    smoothPosition.current.lerp(desiredPosition, 0.08);
-    camera.position.copy(smoothPosition.current);
+      // Smooth exponential damping
+      smoothPosition.current.lerp(desiredPosition, 0.1);
+      camera.position.copy(smoothPosition.current);
 
-    // Smooth look-at target
-    smoothLookAt.current.lerp(desiredLookAt, 0.12);
-    camera.lookAt(smoothLookAt.current);
+      smoothLookAt.current.lerp(desiredLookAt, 0.15);
+      camera.lookAt(smoothLookAt.current);
+    }
   });
 
   return null;
@@ -260,19 +273,19 @@ const PlayerCamera = ({ playerPosition, cameraRef, cameraYawRef }: {
 // Handles Orbit mode movement via gamepad buttons
 const OrbitMovementController = ({
   activeDirections,
-  isPlayerMode,
+  cameraMode,
   controlsRef,
   cameraRef,
   setOrbitTarget
 }: {
   activeDirections: Set<MovementDirection>;
-  isPlayerMode: boolean;
+  cameraMode: CameraMode;
   controlsRef: React.RefObject<any>;
   cameraRef: React.RefObject<THREE.Camera | null>;
   setOrbitTarget: React.Dispatch<React.SetStateAction<THREE.Vector3 | null>>;
 }) => {
   useFrame(() => {
-    if (isPlayerMode || activeDirections.size === 0 || !controlsRef.current) return;
+    if (cameraMode !== 'orbit' || activeDirections.size === 0 || !controlsRef.current) return;
 
     const speed = 0.5;
     const verticalSpeed = 0.4;
@@ -495,9 +508,9 @@ const ModelWithAnnotations = ({
       normalMap: source.normalMap ?? null,
       normalScale: source.normalScale?.clone?.(),
       roughnessMap: source.roughnessMap ?? null,
-      roughness: source.roughness ?? 1,
+      roughness: source.roughness ?? 0.7,
       metalnessMap: source.metalnessMap ?? null,
-      metalness: source.metalness ?? 0,
+      metalness: source.metalness ?? 0.1,
       aoMap: source.aoMap ?? null,
       aoMapIntensity: source.aoMapIntensity ?? 1,
       alphaMap: source.alphaMap ?? null,
@@ -788,13 +801,11 @@ const ModelWithAnnotations = ({
   return (
     <>
       <group ref={modelGroupRef} scale={1} onPointerLeave={() => setHoverInfo(null)}>
-        <Center>
-          <MainModel
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onDoubleClick={handleDoubleClick}
-          />
-        </Center>
+        <MainModel
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onDoubleClick={handleDoubleClick}
+        />
       </group>
 
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
@@ -831,7 +842,7 @@ const isMobile = navigator.maxTouchPoints > 1;
 const Viewer3D: React.FC<Viewer3DProps> = ({
   isDrawingMode,
   activeTool,
-  isPlayerMode,
+  cameraMode,
   paths3D,
   onAddPath3D,
   onRemovePath3D,
@@ -851,17 +862,17 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const cameraRef = useRef<THREE.Camera>(null);
   const cameraYawRef = useRef(0);
   const [orbitTarget, setOrbitTarget] = useState<THREE.Vector3 | null>(null);
-  const [playerPosition, setPlayerPosition] = useState(new THREE.Vector3(0, 1, 0));
+  const [playerPosition, setPlayerPosition] = useState(new THREE.Vector3(0, 0, 0));
   const [showSceneControls, setShowSceneControls] = useState(false);
-  const [directionalIntensity, setDirectionalIntensity] = useState(2.5);
-  const [ambientIntensity, setAmbientIntensity] = useState(0.5);
+  const [directionalIntensity, setDirectionalIntensity] = useState(3.5);
+  const [ambientIntensity, setAmbientIntensity] = useState(0.8);
   const [skyRotation, setSkyRotation] = useState<[number, number, number]>([0, 0, 0.0]);
   const [skyScale, setSkyScale] = useState(220);
   const [fogEnabled, setFogEnabled] = useState(true);
   const [fogDistance, setFogDistance] = useState(480);
-  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([-120, 0, 0]);
+  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 0, 180]);
   const [cameraTarget, setCameraTarget] = useState<[number, number, number]>([0, 0, 0]);
-  const [maxOrbitDistance, setMaxOrbitDistance] = useState(125);
+  const [maxOrbitDistance, setMaxOrbitDistance] = useState(175);
   const [cameraFov, setCameraFov] = useState(50);
   const [activeMovementDirections, setActiveMovementDirections] = useState<Set<MovementDirection>>(new Set());
 
@@ -884,15 +895,15 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isPlayerMode || !cameraRef.current) return;
+    if (cameraMode !== 'orbit' || !cameraRef.current) return;
     cameraRef.current.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
-  }, [cameraPosition, isPlayerMode]);
+  }, [cameraPosition, cameraMode]);
 
   useEffect(() => {
-    if (isPlayerMode || !controlsRef.current) return;
+    if (cameraMode !== 'orbit' || !controlsRef.current) return;
     controlsRef.current.target.set(cameraTarget[0], cameraTarget[1], cameraTarget[2]);
     controlsRef.current.update();
-  }, [cameraTarget, isPlayerMode]);
+  }, [cameraTarget, cameraMode]);
 
   useEffect(() => {
     if (!cameraRef.current) return;
@@ -1002,7 +1013,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               <input
                 type="range"
                 min="0"
-                max="3"
+                max="5"
                 step="0.05"
                 value={directionalIntensity}
                 onChange={(e) => setDirectionalIntensity(Number.parseFloat(e.target.value))}
@@ -1015,7 +1026,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               <input
                 type="range"
                 min="0"
-                max="2"
+                max="3"
                 step="0.05"
                 value={ambientIntensity}
                 onChange={(e) => setAmbientIntensity(Number.parseFloat(e.target.value))}
@@ -1089,7 +1100,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       )}
 
       <Canvas
-        camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
+        camera={{ position: cameraMode !== 'orbit' ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         dpr={[1, 1.5]}
         shadows="soft"
         gl={{ antialias: false, powerPreference: 'high-performance' }}
@@ -1101,7 +1112,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             camera.fov = cameraFov;
             camera.updateProjectionMatrix();
           }
-          if (!isPlayerMode) {
+          if (cameraMode === 'orbit') {
             camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
             camera.lookAt(cameraTarget[0], cameraTarget[1], cameraTarget[2]);
           }
@@ -1109,11 +1120,12 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
       >
         <OrbitMovementController
           activeDirections={activeMovementDirections}
-          isPlayerMode={isPlayerMode}
+          cameraMode={cameraMode}
           controlsRef={controlsRef}
           cameraRef={cameraRef}
           setOrbitTarget={setOrbitTarget}
         />
+        <Environment preset="city" environmentIntensity={0.4} />
         <EquirectangularSky rotation={skyRotation} scale={skyScale} meshRef={skyRef} />
         {fogEnabled && (
           // eslint-disable-next-line react/no-unknown-property
@@ -1144,12 +1156,21 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
 
         <Suspense fallback={<Loader />}>
+          <Player 
+            playerRef={playerRef} 
+            onPlayerMove={setPlayerPosition} 
+            cameraYawRef={cameraYawRef} 
+            activeDirections={activeMovementDirections} 
+            cameraMode={cameraMode}
+          />
 
-          {isPlayerMode && (
-            <>
-              <Player playerRef={playerRef} onPlayerMove={setPlayerPosition} cameraYawRef={cameraYawRef} activeDirections={activeMovementDirections} />
-              <PlayerCamera playerPosition={playerPosition} cameraRef={cameraRef} cameraYawRef={cameraYawRef} />
-            </>
+          {cameraMode !== 'orbit' && (
+            <PlayerCamera 
+              playerPosition={playerPosition} 
+              cameraRef={cameraRef} 
+              cameraYawRef={cameraYawRef} 
+              cameraMode={cameraMode}
+            />
           )}
 
           <ModelWithAnnotations
@@ -1170,7 +1191,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           <Smaa />
         </EffectComposer>
 
-        {!isPlayerMode && (
+        {!isDrawingMode && cameraMode === 'orbit' && (
           <>
             <SmoothTarget controlsRef={controlsRef} targetPoint={orbitTarget} />
             <OrbitControls
