@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { MousePointer2, Pencil, Trash2, Eraser, Box, Circle, Camera, UserRound } from 'lucide-react';
+import { MousePointer2, Pencil, Trash2, Eraser, Box, Circle, Camera, UserRound, Monitor, TabletSmartphone, Undo2 } from 'lucide-react';
 import { ToolMode } from '../types';
 
 interface ToolbarProps {
@@ -15,15 +15,19 @@ interface ToolbarProps {
   onEraserWidthChange: (width: number) => void;
   isPlayerMode: boolean;
   onTogglePlayerMode: () => void;
+  onUndo: () => void;
+  hasPaths3D: boolean;
+  deviceMode: 'desktop' | 'tablet';
+  onToggleDeviceMode: () => void;
 }
 
 const COLORS = [
-  '#d4d4d4',
-  '#9d9d9d',
-  '#569cd6',
-  '#007acc',
-  '#0e639c',
-  '#cccccc',
+  '#fff59d', // Light Yellow
+  '#ffeb3b', // Bright Yellow
+  '#fbc02d', // Deep Yellow
+  '#ffcc80', // Light Orange
+  '#ff9800', // Orange
+  '#f57c00', // Deep Orange
 ];
 
 const PENCIL_PRESETS = [
@@ -50,6 +54,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onEraserWidthChange,
   isPlayerMode,
   onTogglePlayerMode,
+  onUndo,
+  hasPaths3D,
+  deviceMode,
+  onToggleDeviceMode,
 }) => {
   const is2DMode = tool === 'pencil' || tool === 'eraser';
   const isEraser = tool === 'eraser' || tool === 'eraser3d';
@@ -60,7 +68,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) return; // Don't interfere with system shortcuts
-      
+
       switch (e.key.toLowerCase()) {
         case 'p':
           e.preventDefault();
@@ -90,18 +98,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
           e.preventDefault();
           onTogglePlayerMode();
           break;
+        case 'z':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            onUndo();
+          }
+          break;
       }
     };
 
     globalThis.addEventListener('keydown', handleKeyDown);
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
-  }, [onSelectTool, setWidth, isEraser, onTogglePlayerMode]);
+  }, [onSelectTool, setWidth, isEraser, onTogglePlayerMode, onUndo]);
 
   const iconButtonClass = (active: boolean) =>
-    `h-10 w-10 flex items-center justify-center rounded-md border transition-colors ${
-      active
-        ? 'bg-[#094771] border-[#007acc] text-[#ffffff]'
-        : 'bg-[#2d2d30] border-[#3c3c3c] text-[#c5c5c5] hover:bg-[#37373d]'
+    `h-10 w-10 flex items-center justify-center rounded-md border transition-colors ${active
+      ? 'bg-[#094771] border-[#007acc] text-[#ffffff]'
+      : 'bg-[#2d2d30] border-[#3c3c3c] text-[#c5c5c5] hover:bg-[#37373d]'
     }`;
 
   return (
@@ -143,9 +156,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 key={c}
                 onClick={() => onColorChange(c)}
-                className={`h-4 w-4 rounded-sm border ${
-                  color === c ? 'border-[#007acc] ring-1 ring-[#007acc]' : 'border-[#3c3c3c]'
-                }`}
+                className={`h-4 w-4 rounded-sm border ${color === c ? 'border-[#007acc] ring-1 ring-[#007acc]' : 'border-[#3c3c3c]'
+                  }`}
                 style={{ backgroundColor: c }}
                 title={c}
               />
@@ -176,6 +188,25 @@ const Toolbar: React.FC<ToolbarProps> = ({
       )}
 
       <div className="h-px w-8 bg-[#3c3c3c]" />
+
+      <button
+        onClick={onToggleDeviceMode}
+        className={iconButtonClass(false)}
+        title={`Switch to ${deviceMode === 'desktop' ? 'Tablet' : 'Desktop'} Mode`}
+      >
+        {deviceMode === 'desktop' ? <TabletSmartphone size={18} /> : <Monitor size={18} />}
+      </button>
+
+      <div className="h-px w-8 bg-[#3c3c3c]" />
+
+      <button
+        onClick={onUndo}
+        disabled={!hasPaths3D}
+        className={`${iconButtonClass(false)} ${!hasPaths3D ? 'opacity-30 cursor-not-allowed' : ''}`}
+        title="Undo last 3D stroke (Ctrl+Z)"
+      >
+        <Undo2 size={18} />
+      </button>
 
       <button onClick={onClear} className={iconButtonClass(false)} title="Clear all">
         <Trash2 size={18} />

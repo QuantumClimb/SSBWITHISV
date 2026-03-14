@@ -1,7 +1,7 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Html, Line, Sphere, AccumulativeShadows, RandomizedLight, useTexture } from '@react-three/drei';
+import { OrbitControls, Environment, Html, Line, Sphere, AccumulativeShadows, RandomizedLight, useTexture, Center } from '@react-three/drei';
 import { EffectComposer, SMAA as Smaa } from '@react-three/postprocessing';
 import { Wrench } from 'lucide-react';
 import * as THREE from 'three';
@@ -11,6 +11,9 @@ import { Path3D, ToolMode } from '../types';
 import { MainModel } from './models';
 import { shaderTheme } from './shaders/globalShaderTheme';
 import { createSkyMaterial } from './shaders/materialFactories';
+import { GpuPicker } from './GpuPicker';
+import MovementGamepad, { MovementDirection } from './MovementGamepad';
+import { useThree } from '@react-three/fiber';
 
 
 interface Viewer3DProps {
@@ -23,6 +26,7 @@ interface Viewer3DProps {
   currentColor: string;
   pencilWidth: number;
   eraserWidth: number;
+  deviceMode: 'desktop' | 'tablet';
 }
 
 type AxisIndex = 0 | 1 | 2;
@@ -119,10 +123,11 @@ const LineGroup = memo(({ paths3D }: { paths3D: Path3D[] }) => {
 LineGroup.displayName = 'LineGroup';
 
 // Third-person player controller
-const Player = ({ playerRef, onPlayerMove, cameraYawRef }: {
+const Player = ({ playerRef, onPlayerMove, cameraYawRef, activeDirections }: {
   playerRef: React.RefObject<THREE.Group | null>;
   onPlayerMove: (position: THREE.Vector3) => void;
   cameraYawRef: React.RefObject<number>;
+  activeDirections: Set<MovementDirection>;
 }) => {
   const keysPressed = useRef<{ [key: string]: boolean }>({});
 
@@ -144,29 +149,57 @@ const Player = ({ playerRef, onPlayerMove, cameraYawRef }: {
   useFrame(() => {
     if (!playerRef.current) return;
 
-    const speed = 0.2;
-    const turnSpeed = 0.04;
     const keys = keysPressed.current;
-    const forward = new THREE.Vector3(0, 0, -1);
+    const isSprint = keys['shift'] || false;
+    const speedBase = 0.2;
+    const speed = isSprint ? speedBase * 2.5 : speedBase;
+    const verticalSpeed = 0.15;
+    const turnSpeed = 0.04;
 
-    // Rotate camera with A/D or ArrowLeft/ArrowRight
-    if (keys['a'] || keys['arrowleft']) cameraYawRef.current += turnSpeed;
-    if (keys['d'] || keys['arrowright']) cameraYawRef.current -= turnSpeed;
+    // Check both keyboard and gamepad
+    const isForward = keys['w'] || keys['arrowup'] || activeDirections.has('forward');
+    const isBackward = keys['s'] || keys['arrowdown'] || activeDirections.has('backward');
+    const isLeft = keys['a'] || keys['arrowleft'] || activeDirections.has('left');
+    const isRight = keys['d'] || keys['arrowright'] || activeDirections.has('right');
+    const isStrafeLeft = keys['q'] || activeDirections.has('left'); // Overlapping with turn but useful
+    const isStrafeRight = keys['e'] || activeDirections.has('right');
+    const isUp = activeDirections.has('up');
+    const isDown = activeDirections.has('down');
 
-    // Move forward/back with W/S or ArrowUp/ArrowDown
-    let moveAmount = 0;
-    if (keys['w'] || keys['arrowup']) moveAmount += speed;
-    if (keys['s'] || keys['arrowdown']) moveAmount -= speed;
+    // Rotate camera/player turning (A/D or Arrows)
+    if (isLeft) cameraYawRef.current += turnSpeed;
+    if (isRight) cameraYawRef.current -= turnSpeed;
 
-    if (moveAmount !== 0) {
-      forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
-      const movement = forward.multiplyScalar(moveAmount);
+    // Movement vector calculation
+    const movement = new THREE.Vector3(0, 0, 0);
+
+    // Forward/Backward logic
+    if (isForward) movement.z -= 1;
+    if (isBackward) movement.z += 1;
+
+    // Strafe logic (Q/E or gamepad integration)
+    // For gamepad, we'll treat horizontal as turning, but keyboard gets strafing
+    if (keys['q']) movement.x -= 1;
+    if (keys['e']) movement.x += 1;
+
+    if (movement.lengthSq() > 0) {
+      movement.normalize();
+      movement.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
+      movement.multiplyScalar(speed);
       playerRef.current.position.add(movement);
-
-      // Clamp to field bounds (200x200 plane centered at origin)
-      playerRef.current.position.x = Math.max(-100, Math.min(100, playerRef.current.position.x));
-      playerRef.current.position.z = Math.max(-100, Math.min(100, playerRef.current.position.z));
     }
+
+    // Vertical movement
+    if (isUp) {
+      playerRef.current.position.y += verticalSpeed;
+    }
+    if (isDown) {
+      playerRef.current.position.y = Math.max(0.78, playerRef.current.position.y - verticalSpeed);
+    }
+
+    // Clamp to field bounds (200x200 plane centered at origin)
+    playerRef.current.position.x = Math.max(-100, Math.min(100, playerRef.current.position.x));
+    playerRef.current.position.z = Math.max(-100, Math.min(100, playerRef.current.position.z));
 
     onPlayerMove(playerRef.current.position.clone());
   });
@@ -205,17 +238,17 @@ const PlayerCamera = ({ playerPosition, cameraRef, cameraYawRef }: {
 
   useFrame(({ camera }) => {
     if (!playerPosition) return;
-    
+
     const offset = new THREE.Vector3(0, 3.5, 6);
     offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYawRef.current);
     const desiredPosition = playerPosition.clone().add(offset);
     const desiredLookAt = playerPosition.clone();
     desiredLookAt.y += 0.8;
-    
+
     // Smooth exponential damping for position (higher factor = smoother)
     smoothPosition.current.lerp(desiredPosition, 0.08);
     camera.position.copy(smoothPosition.current);
-    
+
     // Smooth look-at target
     smoothLookAt.current.lerp(desiredLookAt, 0.12);
     camera.lookAt(smoothLookAt.current);
@@ -224,8 +257,71 @@ const PlayerCamera = ({ playerPosition, cameraRef, cameraYawRef }: {
   return null;
 };
 
+// Handles Orbit mode movement via gamepad buttons
+const OrbitMovementController = ({
+  activeDirections,
+  isPlayerMode,
+  controlsRef,
+  cameraRef,
+  setOrbitTarget
+}: {
+  activeDirections: Set<MovementDirection>;
+  isPlayerMode: boolean;
+  controlsRef: React.RefObject<any>;
+  cameraRef: React.RefObject<THREE.Camera | null>;
+  setOrbitTarget: React.Dispatch<React.SetStateAction<THREE.Vector3 | null>>;
+}) => {
+  useFrame(() => {
+    if (isPlayerMode || activeDirections.size === 0 || !controlsRef.current) return;
+
+    const speed = 0.5;
+    const verticalSpeed = 0.4;
+    const camera = cameraRef.current;
+    if (!camera) return;
+
+    const offset = new THREE.Vector3();
+
+    // Calculate movement relative to camera orientation
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+
+    // Project vectors onto XZ plane for horizontal movement
+    forward.y = 0;
+    forward.normalize();
+    right.y = 0;
+    right.normalize();
+
+    if (activeDirections.has('forward')) offset.add(forward.multiplyScalar(speed));
+    if (activeDirections.has('backward')) offset.add(forward.multiplyScalar(-speed));
+    if (activeDirections.has('left')) offset.add(right.multiplyScalar(-speed));
+    if (activeDirections.has('right')) offset.add(right.multiplyScalar(speed));
+
+    if (offset.lengthSq() > 0) {
+      setOrbitTarget((prev) => {
+        const current = prev || new THREE.Vector3(0, 0, 0);
+        return current.clone().add(offset);
+      });
+    }
+
+    if (activeDirections.has('up')) {
+      setOrbitTarget((prev) => {
+        const current = prev || new THREE.Vector3(0, 0, 0);
+        return current.clone().add(new THREE.Vector3(0, verticalSpeed, 0));
+      });
+    }
+    if (activeDirections.has('down')) {
+      setOrbitTarget((prev) => {
+        const current = prev || new THREE.Vector3(0, 0, 0);
+        return current.clone().add(new THREE.Vector3(0, -verticalSpeed, 0));
+      });
+    }
+  });
+
+  return null;
+};
+
 // Equirectangular sky component
-const EquirectangularSky = ({ rotation = [0, 0, 0], scale = 100 }: { rotation?: [number, number, number]; scale?: number }) => {
+const EquirectangularSky = ({ rotation = [0, 0, 0], scale = 100, meshRef }: { rotation?: [number, number, number]; scale?: number; meshRef?: React.RefObject<THREE.Mesh | null> }) => {
   const texture = useTexture('/SKY.png');
   const material = useMemo(() => createSkyMaterial(texture), [texture]);
 
@@ -234,13 +330,13 @@ const EquirectangularSky = ({ rotation = [0, 0, 0], scale = 100 }: { rotation?: 
       // Enable linear filtering for smoother appearance
       texture.magFilter = THREE.LinearFilter;
       texture.minFilter = THREE.LinearMipmapLinearFilter;
-      
+
       // Request GPU to generate mipmaps for better quality at distance
       texture.generateMipmaps = true;
-      
+
       // Anisotropic filtering for improved quality when viewed at an angle
       texture.anisotropy = 16;
-      
+
       // Mark texture as updated
       texture.needsUpdate = true;
     }
@@ -254,7 +350,7 @@ const EquirectangularSky = ({ rotation = [0, 0, 0], scale = 100 }: { rotation?: 
 
   return (
     // eslint-disable-next-line react/no-unknown-property
-    <mesh scale={[scale, scale, scale]} rotation={rotation}>
+    <mesh ref={meshRef} scale={[scale, scale, scale]} rotation={rotation}>
       {/* eslint-disable-next-line react/no-unknown-property */}
       <sphereGeometry args={[1, 128, 128]} />
       {/* eslint-disable-next-line react/no-unknown-property */}
@@ -328,7 +424,8 @@ const ModelWithAnnotations = ({
   pencilWidth,
   eraserWidth,
   paths3D,
-  onSetTarget
+  onSetTarget,
+  skyRef
 }: {
   activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
@@ -338,26 +435,43 @@ const ModelWithAnnotations = ({
   eraserWidth: number;
   paths3D: Path3D[];
   onSetTarget: (point: THREE.Vector3) => void;
+  skyRef: React.RefObject<THREE.Mesh | null>;
 }) => {
+  const { gl, scene, camera, size: canvasSize } = useThree();
+  const gpuPicker = useMemo(() => new GpuPicker(), []);
+
+  useEffect(() => {
+    return () => gpuPicker.dispose();
+  }, [gpuPicker]);
+
   const modelGroupRef = useRef<THREE.Group>(null);
+  const annotationsRef = useRef<THREE.Group>(null);
+  const brushRef = useRef<THREE.Mesh>(null);
+  const hoverSphereRef = useRef<THREE.Group>(null); // Kept for picking pass concealment
+
   // Ref instead of state: zero React re-renders during drawing hot path
   const currentPointsRef = useRef<THREE.Vector3[]>([]);
-  const liveLineGeoRef = useRef<THREE.BufferGeometry | null>(null);
-  const liveLineMatRef = useRef<THREE.LineBasicMaterial | null>(null);
-  const liveLineObjRef = useRef<THREE.Line | null>(null);
-  // Lazy-initialize the live-line Three.js objects once; avoids re-creating on every re-render
-  if (!liveLineGeoRef.current) liveLineGeoRef.current = new THREE.BufferGeometry();
-  if (!liveLineMatRef.current) liveLineMatRef.current = new THREE.LineBasicMaterial({ polygonOffset: true, polygonOffsetFactor: -15 });
-  if (!liveLineObjRef.current) {
-    const _ll = new THREE.Line(liveLineGeoRef.current, liveLineMatRef.current);
-    _ll.visible = false;
-    liveLineObjRef.current = _ll;
-  }
-  const [hoverInfo, setHoverInfo] = useState<{point: THREE.Vector3, normal: THREE.Vector3} | null>(null);
+
+  // Lazy-initialize the live-line Three.js objects once
+  const liveLineGeoRef = useRef<THREE.BufferGeometry>(new THREE.BufferGeometry());
+  const liveLineMatRef = useRef<THREE.LineBasicMaterial>(new THREE.LineBasicMaterial({
+    color: currentColor,
+    polygonOffset: true,
+    polygonOffsetFactor: -20,
+    transparent: true,
+    opacity: 0.9
+  }));
+  const liveLineObjRef = useRef<THREE.Line>(new THREE.Line(liveLineGeoRef.current, liveLineMatRef.current));
+
+  const [hoverInfo, setHoverInfo] = useState<{ point: THREE.Vector3, normal: THREE.Vector3 } | null>(null);
   const isDrawing3D = useRef(false);
   const lastHoverTimeRef = useRef(0);
   const OFFSET_DISTANCE = 0.015;
-  const HOVER_THROTTLE_MS = 30; // ~33fps — reduced for iPad thermals/ProMotion
+  const HOVER_THROTTLE_MS = 16; // ~60fps for smoother iPad experience
+  const DOUBLE_TAP_DELAY = 300; // ms
+
+  const lastTapTimeRef = useRef(0);
+  const lastTapPosRef = useRef({ x: 0, y: 0 });
 
   // Precompute bounding spheres for all paths — only recalculated when paths change
   const boundsMap = useMemo(() => {
@@ -420,6 +534,9 @@ const ModelWithAnnotations = ({
       object.castShadow = true;
       object.receiveShadow = true;
 
+      // Enable picking layer
+      object.layers.enable(1);
+
       if (Array.isArray(object.material)) {
         object.material = object.material.map((mat) => upgradeToStandardMaterial(mat));
       } else if (object.material) {
@@ -427,6 +544,31 @@ const ModelWithAnnotations = ({
       }
     });
   }, [upgradeToStandardMaterial]);
+
+  const getSurfacePointGPU = useCallback((mouse: { x: number; y: number }) => {
+    // Hide annotations so they aren't picked
+    const annosVisible = annotationsRef.current?.visible;
+    const hoverVisible = hoverSphereRef.current?.visible;
+    const skyVisible = skyRef.current?.visible;
+
+    if (annotationsRef.current) annotationsRef.current.visible = false;
+    if (hoverSphereRef.current) hoverSphereRef.current.visible = false;
+    if (skyRef.current) skyRef.current.visible = false;
+
+    const hit = gpuPicker.pick(gl, scene, camera, mouse);
+
+    // Restore visibility
+    if (annotationsRef.current) annotationsRef.current.visible = annosVisible ?? true;
+    if (hoverSphereRef.current) hoverSphereRef.current.visible = hoverVisible ?? true;
+    if (skyRef.current) skyRef.current.visible = skyVisible ?? true;
+
+    if (!hit) return null;
+
+    const point = hit.point.clone();
+    const normal = hit.normal.clone();
+    point.add(normal.multiplyScalar(OFFSET_DISTANCE));
+    return { point, normal };
+  }, [gl, scene, camera, gpuPicker]);
 
   const getSurfacePoint = useCallback((e: any) => {
     if (!e.point || !e.face) return null;
@@ -474,19 +616,47 @@ const ModelWithAnnotations = ({
   }, [paths3D, eraserWidth, checkPathIntersection, onRemovePath3D]);
 
   const handlePointerDown = useCallback((e: any) => {
-    if (activeTool === 'pencil3d') {
+    // iPad Focus: Double tap detection logic
+    if (activeTool === 'view') {
+      const now = performance.now();
+      const timeDiff = now - lastTapTimeRef.current;
+      const dist = Math.sqrt(
+        Math.pow(e.pointer.x - lastTapPosRef.current.x, 2) +
+        Math.pow(e.pointer.y - lastTapPosRef.current.y, 2)
+      );
+
+      if (timeDiff < DOUBLE_TAP_DELAY && dist < 0.05) {
+        // Detected double tap
+        if (e.point) {
+          onSetTarget(e.point.clone());
+        }
+        lastTapTimeRef.current = 0; // Reset
+      } else {
+        lastTapTimeRef.current = now;
+        lastTapPosRef.current = { x: e.pointer.x, y: e.pointer.y };
+      }
+      return;
+    }
+
+    if (activeTool === 'pencil3d' || activeTool === 'eraser3d') {
       e.stopPropagation();
-      const surface = getSurfacePoint(e);
+
+      const mouse = {
+        x: e.pointer.x,
+        y: e.pointer.y
+      };
+
+      const surface = getSurfacePointGPU(mouse);
       if (surface) {
         isDrawing3D.current = true;
-        currentPointsRef.current = [surface.point];
+        if (activeTool === 'pencil3d') {
+          currentPointsRef.current = [surface.point];
+        } else {
+          eraseAt(surface.point);
+        }
       }
-    } else if (activeTool === 'eraser3d') {
-      e.stopPropagation();
-      isDrawing3D.current = true;
-      eraseAt(e.point);
     }
-  }, [activeTool, getSurfacePoint, eraseAt]);
+  }, [activeTool, getSurfacePointGPU, eraseAt, onSetTarget]);
 
   const handleDoubleClick = useCallback((e: any) => {
     if (activeTool !== 'view') return;
@@ -499,19 +669,24 @@ const ModelWithAnnotations = ({
   const handlePointerMove = useCallback((e: any) => {
     const now = performance.now();
 
+    const mouse = {
+      x: e.pointer.x,
+      y: e.pointer.y
+    };
+
     if (now - lastHoverTimeRef.current > HOVER_THROTTLE_MS) {
-      const surface = getSurfacePoint(e);
+      const surface = getSurfacePointGPU(mouse);
       if (surface) {
         setHoverInfo(surface);
+      } else {
+        setHoverInfo(null);
       }
       lastHoverTimeRef.current = now;
     }
 
     if (isDrawing3D.current) {
-      e.stopPropagation();
-
       if (activeTool === 'pencil3d') {
-        const surface = getSurfacePoint(e);
+        const surface = getSurfacePointGPU(mouse);
         if (surface) {
           const lastPoint = currentPointsRef.current.at(-1);
           if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.02) {
@@ -519,11 +694,15 @@ const ModelWithAnnotations = ({
           }
         }
       } else if (activeTool === 'eraser3d') {
-        eraseAt(e.point);
+        const surface = getSurfacePointGPU(mouse);
+        if (surface) {
+          eraseAt(surface.point);
+        }
       }
     }
-  }, [activeTool, getSurfacePoint, eraseAt]);
+  }, [activeTool, getSurfacePointGPU, eraseAt]);
 
+  // We still need a global pointerup to finish the stroke if the mouse leaves the mesh
   useEffect(() => {
     const handleGlobalUp = () => {
       if (isDrawing3D.current) {
@@ -541,8 +720,8 @@ const ModelWithAnnotations = ({
         currentPointsRef.current = [];
       }
     };
-    globalThis.addEventListener('pointerup', handleGlobalUp);
-    return () => globalThis.removeEventListener('pointerup', handleGlobalUp);
+    window.addEventListener('pointerup', handleGlobalUp);
+    return () => window.removeEventListener('pointerup', handleGlobalUp);
   }, [activeTool, currentColor, pencilWidth, onAddPath3D]);
 
   useEffect(() => {
@@ -575,6 +754,12 @@ const ModelWithAnnotations = ({
 
   // Imperatively update the in-progress line geometry every frame — no React state involved
   useFrame(() => {
+    // Update brush orientation and position
+    if (brushRef.current && hoverInfo) {
+      brushRef.current.position.copy(hoverInfo.point);
+      brushRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hoverInfo.normal);
+    }
+
     if (!liveLineObjRef.current || !liveLineGeoRef.current) return;
     const pts = currentPointsRef.current;
     if (pts.length < 2) {
@@ -582,9 +767,11 @@ const ModelWithAnnotations = ({
       return;
     }
     liveLineObjRef.current.visible = true;
+    (liveLineObjRef.current.material as THREE.LineBasicMaterial).color.set(currentColor);
+
     const arr = new Float32Array(pts.length * 3);
     for (let i = 0; i < pts.length; i++) {
-      arr[i * 3]     = pts[i].x;
+      arr[i * 3] = pts[i].x;
       arr[i * 3 + 1] = pts[i].y;
       arr[i * 3 + 2] = pts[i].z;
     }
@@ -601,73 +788,64 @@ const ModelWithAnnotations = ({
   return (
     <>
       <group ref={modelGroupRef} scale={1} onPointerLeave={() => setHoverInfo(null)}>
-        <MainModel
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onDoubleClick={handleDoubleClick}
-        />
-
-        {/* Ground plane - also drawable with 3D pencil */}
-        {/* eslint-disable react/no-unknown-property */}
-        <mesh
-          position={[0, -0.65, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          userData={{ shaderSurface: 'terrain' }}
-          receiveShadow
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onDoubleClick={handleDoubleClick}
-        >
-          {/* eslint-disable-next-line react/no-unknown-property */}
-          <planeGeometry args={[200, 200]} />
-          {/* eslint-disable-next-line react/no-unknown-property */}
-          <meshStandardMaterial color={shaderTheme.ground.dirt} roughness={0.95} metalness={0} />
-        </mesh>
-        {/* eslint-enable react/no-unknown-property */}
+        <Center>
+          <MainModel
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onDoubleClick={handleDoubleClick}
+          />
+        </Center>
       </group>
 
       {hoverInfo && (activeTool === 'pencil3d' || activeTool === 'eraser3d') && (
-        // eslint-disable-next-line react/no-unknown-property
-        <Sphere
-          args={[activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200, 8, 8]}
-          position={hoverInfo.point}
-          userData={{ skipStandard: true }}
-        >
-          {/* eslint-disable react/no-unknown-property */}
-          <meshBasicMaterial 
-            color={activeTool === 'eraser3d' ? shaderTheme.model.red : currentColor}
-            transparent
-            opacity={0.7}
-          />
-          {/* eslint-enable react/no-unknown-property */}
-        </Sphere>
+        <group ref={hoverSphereRef}>
+          <mesh ref={brushRef}>
+            <ringGeometry args={[
+              (activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200) * 0.8,
+              activeTool === 'eraser3d' ? eraserWidth / 400 : pencilWidth / 200,
+              32
+            ]} />
+            <meshBasicMaterial
+              color={activeTool === 'eraser3d' ? shaderTheme.model.red : currentColor}
+              transparent
+              opacity={0.8}
+              depthTest={false}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
       )}
 
       {/* Imperative live-line preview — geometry updated by useFrame, zero React re-renders during draw */}
       {/* eslint-disable-next-line react/no-unknown-property */}
-      <primitive object={liveLineObjRef.current} />
+      <group ref={annotationsRef}>
+        <primitive object={liveLineObjRef.current} />
+        <LineGroup paths3D={paths3D} />
+      </group>
     </>
   );
 };
 
 const isMobile = navigator.maxTouchPoints > 1;
 
-const Viewer3D: React.FC<Viewer3DProps> = ({ 
-  isDrawingMode, 
-  activeTool, 
+const Viewer3D: React.FC<Viewer3DProps> = ({
+  isDrawingMode,
+  activeTool,
   isPlayerMode,
-  paths3D, 
+  paths3D,
   onAddPath3D,
   onRemovePath3D,
   currentColor,
   pencilWidth,
-  eraserWidth
+  eraserWidth,
+  deviceMode,
 }) => {
   useEffect(() => {
     ensureBvhRaycastAcceleration();
   }, []);
 
   const lightRef = useRef<THREE.DirectionalLight>(null);
+  const skyRef = useRef<THREE.Mesh>(null);
   const controlsRef = useRef<any>(null);
   const playerRef = useRef<THREE.Group>(null);
   const cameraRef = useRef<THREE.Camera>(null);
@@ -685,6 +863,16 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [cameraTarget, setCameraTarget] = useState<[number, number, number]>([0, 0, 0]);
   const [maxOrbitDistance, setMaxOrbitDistance] = useState(125);
   const [cameraFov, setCameraFov] = useState(50);
+  const [activeMovementDirections, setActiveMovementDirections] = useState<Set<MovementDirection>>(new Set());
+
+  const handleGamepadInput = useCallback((direction: MovementDirection, active: boolean) => {
+    setActiveMovementDirections((prev) => {
+      const next = new Set(prev);
+      if (active) next.add(direction);
+      else next.delete(direction);
+      return next;
+    });
+  }, []);
 
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
@@ -736,16 +924,17 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900">
+      {/* Scene Controls Button */}
       <button
         onClick={() => setShowSceneControls((prev) => !prev)}
-        className="absolute bottom-5 left-5 z-30 h-9 w-9 rounded-md border border-[#3c3c3c] bg-[#252526]/95 text-[#c5c5c5] hover:bg-[#2d2d30] flex items-center justify-center"
+        className={`absolute bottom-5 ${deviceMode === 'tablet' ? 'right-5' : 'left-5'} z-30 h-9 w-9 rounded-md border border-[#3c3c3c] bg-[#252526]/95 text-[#c5c5c5] hover:bg-[#2d2d30] flex items-center justify-center`}
         title="Scene controls"
       >
         <Wrench size={16} />
       </button>
 
       {showSceneControls && (
-        <div className="absolute bottom-16 left-5 z-30 w-72 border border-[#3c3c3c] bg-[#252526]/95 text-[#cccccc] rounded-md p-3 shadow-2xl space-y-3">
+        <div className={`absolute bottom-16 ${deviceMode === 'tablet' ? 'right-5' : 'left-5'} z-30 w-72 border border-[#3c3c3c] bg-[#252526]/95 text-[#cccccc] rounded-md p-3 shadow-2xl space-y-3`}>
           <div className="text-[11px] uppercase tracking-[0.14em] text-[#c5c5c5]">Scene</div>
 
           <div className="space-y-2">
@@ -899,8 +1088,8 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         </div>
       )}
 
-      <Canvas 
-        camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }} 
+      <Canvas
+        camera={{ position: isPlayerMode ? [0, 5, 8] : cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         dpr={[1, 1.5]}
         shadows="soft"
         gl={{ antialias: false, powerPreference: 'high-performance' }}
@@ -918,7 +1107,14 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           }
         }}
       >
-        <EquirectangularSky rotation={skyRotation} scale={skyScale} />
+        <OrbitMovementController
+          activeDirections={activeMovementDirections}
+          isPlayerMode={isPlayerMode}
+          controlsRef={controlsRef}
+          cameraRef={cameraRef}
+          setOrbitTarget={setOrbitTarget}
+        />
+        <EquirectangularSky rotation={skyRotation} scale={skyScale} meshRef={skyRef} />
         {fogEnabled && (
           // eslint-disable-next-line react/no-unknown-property
           <fog attach="fog" args={[shaderTheme.sky.mistColor, 10, fogDistance]} />
@@ -926,7 +1122,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         {/* eslint-disable-next-line react/no-unknown-property */}
         <ambientLight intensity={ambientIntensity} />
         {/* eslint-disable react/no-unknown-property */}
-        <directionalLight 
+        <directionalLight
           ref={lightRef}
           position={sunPosition}
           color={sunColor}
@@ -946,57 +1142,33 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         {/* eslint-disable-next-line react/no-unknown-property */}
         <axesHelper args={[8]} position={cameraTarget} />
 
-        
+
         <Suspense fallback={<Loader />}>
-          
+
           {isPlayerMode && (
             <>
-              <Player playerRef={playerRef} onPlayerMove={setPlayerPosition} cameraYawRef={cameraYawRef} />
+              <Player playerRef={playerRef} onPlayerMove={setPlayerPosition} cameraYawRef={cameraYawRef} activeDirections={activeMovementDirections} />
               <PlayerCamera playerPosition={playerPosition} cameraRef={cameraRef} cameraYawRef={cameraYawRef} />
             </>
           )}
 
           <ModelWithAnnotations
-              activeTool={activeTool}
-              onAddPath3D={onAddPath3D}
-              onRemovePath3D={onRemovePath3D}
-              currentColor={currentColor}
-              pencilWidth={pencilWidth}
-              eraserWidth={eraserWidth}
-              paths3D={paths3D}
-              onSetTarget={setOrbitTarget}
-            />
-            <LineGroup paths3D={paths3D} />
-            <AccumulativeShadows
-              position={[0, -0.649, 0]}
-              scale={200}
-              temporal
-              frames={60}
-              alphaTest={0.75}
-              opacity={0.85}
-              color="#302010"
-              colorBlend={2}
-            >
-              <RandomizedLight
-                amount={8}
-                radius={40}
-                position={[130, 150, 130]}
-                intensity={1.5}
-                ambient={0.35}
-                bias={0.001}
-                castShadow
-              />
-            </AccumulativeShadows>
-          <Environment preset="sunset" />
+            activeTool={activeTool}
+            onAddPath3D={onAddPath3D}
+            onRemovePath3D={onRemovePath3D}
+            currentColor={currentColor}
+            pencilWidth={pencilWidth}
+            eraserWidth={eraserWidth}
+            paths3D={paths3D}
+            onSetTarget={setOrbitTarget}
+            skyRef={skyRef}
+          />
         </Suspense>
 
-        {/* SMAA skipped on touch devices — expensive full-screen pass on iPad */}
-        {!isMobile && (
-          <EffectComposer multisampling={4}>
-            {/* eslint-disable-next-line react/no-unknown-property */}
-            <Smaa />
-          </EffectComposer>
-        )}
+        {/* Post-processing effects for better visual quality */}
+        <EffectComposer multisampling={4}>
+          <Smaa />
+        </EffectComposer>
 
         {!isPlayerMode && (
           <>
@@ -1019,6 +1191,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           </>
         )}
       </Canvas>
+
+      {deviceMode === 'tablet' && (
+        <MovementGamepad
+          activeDirections={activeMovementDirections}
+          onDirectionChange={handleGamepadInput}
+        />
+      )}
     </div>
   );
 };

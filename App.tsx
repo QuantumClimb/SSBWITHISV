@@ -10,7 +10,8 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPlayerMode, setIsPlayerMode] = useState(false);
   const [tool, setTool] = useState<ToolMode>('view');
-  const [color, setColor] = useState('#007acc');
+  const [deviceMode, setDeviceMode] = useState<'desktop' | 'tablet'>('desktop');
+  const [color, setColor] = useState('#ffeb3b');
   const [pencilWidth, setPencilWidth] = useState(4);
   const [eraserWidth, setEraserWidth] = useState(40);
   const [paths, setPaths] = useState<Path[]>([]);
@@ -42,6 +43,10 @@ const App: React.FC = () => {
     setPaths3D((prev) => prev.filter(p => p.id !== id));
   }, []);
 
+  const undoPath3D = useCallback(() => {
+    setPaths3D((prev) => prev.slice(0, -1));
+  }, []);
+
   const handleLoginSuccess = useCallback(() => {
     setIsAuthenticated(true);
   }, []);
@@ -53,8 +58,8 @@ const App: React.FC = () => {
   return (
     <div className="relative w-screen h-screen bg-slate-900 select-none overflow-hidden text-white font-sans">
       {/* 3D Model Layer */}
-      <Viewer3D 
-        isDrawingMode={is3DDrawingMode} 
+      <Viewer3D
+        isDrawingMode={is3DDrawingMode}
         activeTool={tool}
         isPlayerMode={isPlayerMode}
         paths3D={paths3D}
@@ -63,13 +68,14 @@ const App: React.FC = () => {
         currentColor={color}
         pencilWidth={pencilWidth}
         eraserWidth={eraserWidth}
+        deviceMode={deviceMode}
       />
 
       {/* 2D Annotation Overlay Layer */}
-      <AnnotationCanvas 
-        isDrawingMode={is2DDrawingMode} 
+      <AnnotationCanvas
+        isDrawingMode={is2DDrawingMode}
         activeTool={tool}
-        currentColor={color} 
+        currentColor={color}
         pencilWidth={pencilWidth}
         eraserWidth={eraserWidth}
         paths={paths}
@@ -89,6 +95,10 @@ const App: React.FC = () => {
         onEraserWidthChange={setEraserWidth}
         isPlayerMode={isPlayerMode}
         onTogglePlayerMode={() => setIsPlayerMode(prev => !prev)}
+        onUndo={undoPath3D}
+        hasPaths3D={paths3D.length > 0}
+        deviceMode={deviceMode}
+        onToggleDeviceMode={() => setDeviceMode(prev => prev === 'desktop' ? 'tablet' : 'desktop')}
       />
 
       {/* Overlay for instructions */}
