@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { MousePointer2, Pencil, Trash2, Eraser, Box, Circle, Camera, User, Eye, Monitor, TabletSmartphone, Undo2, LayoutGrid } from 'lucide-react';
+import { MousePointer2, Pencil, Trash2, Eraser, Box, Circle, Camera, Monitor, TabletSmartphone, Undo2, LayoutGrid } from 'lucide-react';
 import { ToolMode, CameraMode } from '../types';
 
 interface ToolbarProps {
@@ -13,8 +13,6 @@ interface ToolbarProps {
   onPencilWidthChange: (width: number) => void;
   eraserWidth: number;
   onEraserWidthChange: (width: number) => void;
-  cameraMode: CameraMode;
-  onChangeCameraMode: (mode: CameraMode) => void;
   onUndo: () => void;
   hasPaths3D: boolean;
   deviceMode: 'desktop' | 'tablet';
@@ -52,8 +50,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onPencilWidthChange,
   eraserWidth,
   onEraserWidthChange,
-  cameraMode,
-  onChangeCameraMode,
   onUndo,
   hasPaths3D,
   deviceMode,
@@ -94,11 +90,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           e.preventDefault();
           setWidth(isEraser ? 100 : 8);
           break;
-        case 'm':
-          e.preventDefault();
-          const nextMode: CameraMode = cameraMode === 'orbit' ? 'fpv' : cameraMode === 'fpv' ? 'tpv' : 'orbit';
-          onChangeCameraMode(nextMode);
-          break;
+
         case 'z':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
@@ -110,7 +102,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
     globalThis.addEventListener('keydown', handleKeyDown);
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
-  }, [onSelectTool, setWidth, isEraser, cameraMode, onChangeCameraMode, onUndo]);
+  }, [onSelectTool, setWidth, isEraser, onUndo]);
 
   const iconButtonClass = (active: boolean) =>
     `h-10 w-10 flex items-center justify-center rounded-md border transition-colors ${active
@@ -142,27 +134,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="h-px w-8 bg-[#3c3c3c]" />
 
       <button
-        onClick={() => onChangeCameraMode('orbit')}
-        className={iconButtonClass(cameraMode === 'orbit')}
+        className={iconButtonClass(true)}
         title="Orbit Mode (Camera)"
       >
         <Camera size={18} />
-      </button>
-
-      <button
-        onClick={() => onChangeCameraMode('fpv')}
-        className={iconButtonClass(cameraMode === 'fpv')}
-        title="First Person Mode"
-      >
-        <Eye size={18} />
-      </button>
-
-      <button
-        onClick={() => onChangeCameraMode('tpv')}
-        className={iconButtonClass(cameraMode === 'tpv')}
-        title="Third Person Mode"
-      >
-        <User size={18} />
       </button>
 
       {tool === 'pencil' && (

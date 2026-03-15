@@ -4,11 +4,10 @@ import Viewer3D from './components/Viewer3D';
 import AnnotationCanvas from './components/AnnotationCanvas';
 import Toolbar from './components/Toolbar';
 import Login from './components/Login';
-import { Path, Path3D, ToolMode, CameraMode } from './types';
+import { Path, Path3D, ToolMode } from './types';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [tool, setTool] = useState<ToolMode>('view');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'tablet'>('desktop');
   const [color, setColor] = useState('#ffeb3b');
@@ -61,7 +60,6 @@ const App: React.FC = () => {
       <Viewer3D
         isDrawingMode={is3DDrawingMode}
         activeTool={tool}
-        cameraMode={cameraMode}
         paths3D={paths3D}
         onAddPath3D={addPath3D}
         onRemovePath3D={removePath3D}
@@ -69,6 +67,7 @@ const App: React.FC = () => {
         pencilWidth={pencilWidth}
         eraserWidth={eraserWidth}
         deviceMode={deviceMode}
+        onClear={clearAnnotations}
       />
 
       {/* 2D Annotation Overlay Layer */}
@@ -93,8 +92,6 @@ const App: React.FC = () => {
         onPencilWidthChange={setPencilWidth}
         eraserWidth={eraserWidth}
         onEraserWidthChange={setEraserWidth}
-        cameraMode={cameraMode}
-        onChangeCameraMode={setCameraMode}
         onUndo={undoPath3D}
         hasPaths3D={paths3D.length > 0}
         deviceMode={deviceMode}
