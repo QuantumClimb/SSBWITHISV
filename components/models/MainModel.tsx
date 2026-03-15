@@ -1,94 +1,189 @@
 
-import * as THREE from 'three'
 import React from 'react'
+import * as THREE from 'three'
 import { useGLTF, useTexture } from '@react-three/drei'
 import { GLTF } from 'three-stdlib'
+import { ThreeElements } from '@react-three/fiber'
 
 type GLTFResult = GLTF & {
-  nodes: {
-    [key: string]: THREE.Mesh
-  }
-  materials: {
-    [key: string]: THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial
-  }
+  nodes: any
+  materials: any
 }
 
-export function Model(props: any) {
-  const { nodes, materials } = useGLTF('/FINAL_GROUND.glb') as unknown as GLTFResult
+interface MainModelProps extends Partial<ThreeElements['group']> {
+  onTargetsUpdate?: (targets: Record<string, [number, number, number]>) => void;
+}
+
+export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
+  const { scene } = useGLTF('/FINAL_GROUND.glb') as unknown as GLTFResult
   
   // Custom textures provided by the user
   const rockTexture = useTexture('/rock.jpg')
   const grassTexture = useTexture('/grass.jpg')
   const concreteTexture = useTexture('/concrete.jpg')
+  const sandTexture = useTexture('/Sand.jpg')
+  const isvTexture = useTexture('/ISV.png')
+  const topNewTexture = useTexture('/TOPNEW.jpg')
 
-  // Configure textures (flipY, wrapping etc if needed)
-  ;[rockTexture, grassTexture, concreteTexture].forEach(t => {
-    t.wrapS = t.wrapT = THREE.RepeatWrapping
-    t.flipY = false
-  })
+  // Configure textures
+  React.useEffect(() => {
+    // Only apply heavy repetition to sand as requested for tiling
+    if (sandTexture) {
+      sandTexture.wrapS = sandTexture.wrapT = THREE.RepeatWrapping
+      sandTexture.repeat.set(10, 10)
+    }
+    // Other textures (grass, rock, etc.) use their default or native mapping
+  }, [rockTexture, grassTexture, concreteTexture, sandTexture, isvTexture, topNewTexture])
 
-  // Specific tiling adjustments
-  rockTexture.repeat.set(4, 4)
-  grassTexture.repeat.set(8, 8)
-  concreteTexture.repeat.set(6, 6)
+  // Traverse the scene graph to apply material overrides and calculate markers
+  const { markers, minimapTargets } = React.useMemo(() => {
+    const { scene, materials } = useGLTF('/FINAL_GROUND.glb') as unknown as GLTFResult
+    const drySandMaterial = materials['Dry Sand']
+    
+    const groups: Map<string, THREE.Box3> = new Map()
+    const singulars: Map<string, THREE.Vector3> = new Map()
+    const miniGroups: Map<string, THREE.Box3> = new Map()
+    
+    scene.traverse((object) => {
+      const name = object.name.toUpperCase()
+      
+      // 1. Keyword-based Material Mapping (Mesh only)
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = true
+        object.receiveShadow = true
+        
+        const stdMat = object.material as THREE.MeshStandardMaterial
+        const matName = stdMat?.name?.toLowerCase() || ''
+
+        if (matName.includes('rock') || name.toLowerCase().includes('rock')) {
+          const m = stdMat.clone()
+          m.map = rockTexture
+          m.name = 'ROCK_OVERRIDE'
+          object.material = m
+        } else if (matName.includes('sand') || name.toLowerCase().includes('sand')) {
+          if (drySandMaterial) {
+            object.material = drySandMaterial
+            // Map the custom sand.jpg to the Dry Sand material
+            if (sandTexture) {
+              drySandMaterial.map = sandTexture
+              sandTexture.wrapS = sandTexture.wrapT = THREE.RepeatWrapping
+              sandTexture.repeat.set(10, 10)
+            }
+          } else {
+            const m = stdMat.clone()
+            m.map = sandTexture
+            m.name = 'SAND_OVERRIDE'
+            object.material = m
+          }
+        } else if (stdMat?.name === 'CONCRETE') {
+          const m = stdMat.clone()
+          m.map = concreteTexture
+          m.color.set('#a68b77') 
+          m.name = 'CONCRETE_BROWN_OVERRIDE'
+          object.material = m
+        } else if (matName === 'concrete') {
+          const m = stdMat.clone()
+          m.map = concreteTexture
+          m.name = 'CONCRETE_WHITE_OVERRIDE'
+          object.material = m
+        } else if (matName.includes('grass') || name.toLowerCase().includes('grass')) {
+          const m = new THREE.MeshStandardMaterial({ 
+            color: '#2d5a27', 
+            roughness: 0.8, 
+            metalness: 0.1 
+          })
+          m.name = 'GRASS_GREEN_OVERRIDE'
+          object.material = m
+        } else if (matName.includes('signage') || matName.includes('logo') || matName.includes('topic')) {
+          const m = stdMat.clone()
+          m.map = isvTexture
+          m.name = 'ISV_OVERRIDE'
+          object.material = m
+        } else if (name.includes('TOPNEW') || matName.includes('topnew')) {
+          const m = stdMat.clone()
+          m.map = topNewTexture
+          m.name = 'TOPNEW_OVERRIDE'
+          object.material = m
+        }
+      }
+
+      // 2. Identify Target Groups/Singulars for Markers & Minimap
+      const isPGTIndex = name.match(/^PGT\d+/)
+      const isCTIndex = name.match(/^CT\d+/)
+      const isPGTNew = name === 'PGT_NEW_GRID'
+      const isHGTZone = name === 'HGT_ZONE'
+      
+      if (isPGTIndex || isCTIndex || isPGTNew || isHGTZone) {
+        const pos = new THREE.Vector3()
+        object.getWorldPosition(pos)
+        if (object instanceof THREE.Mesh) {
+          const box = new THREE.Box3().setFromObject(object)
+          box.getCenter(pos)
+        }
+        singulars.set(`${name}_${object.uuid}`, pos)
+        return 
+      }
+
+      // 3. Parent-level aggregation
+      let prefix = ''
+      if (name === 'CT_GRID') prefix = 'CT_GRID'
+      else if (name === 'CT_GRID_1' || name === 'PGT_GRID' || name.includes('PGT_NEW')) prefix = 'PGT_GRID'
+      else if (name === 'GROUP_GRASS' || name.includes('L_GRID')) prefix = 'L_GRID'
+
+      let miniPrefix = ''
+      if (name.match(/^HGT\d+/)) miniPrefix = 'HGT'
+      else if (name.match(/^FGT\d+/) || name === 'FINAL_GROUND') miniPrefix = 'FG'
+      else if (name.match(/^S\d+/)) miniPrefix = 'INDIVIDUAL OBSTACLES'
+      else if (name.includes('GROUP_OBSTACLES') || name.includes('GROUP_OBSTACLE')) miniPrefix = 'GROUP OBSTACLES'
+
+      const updateBox = (map: Map<string, THREE.Box3>, key: string) => {
+        // Only aggregate meshes for accurate physical centers
+        if (!(object instanceof THREE.Mesh)) return;
+        
+        const box = new THREE.Box3().setFromObject(object)
+        if (!map.has(key)) map.set(key, box)
+        else map.get(key)!.union(box)
+      }
+
+      if (prefix) updateBox(groups, prefix)
+      if (miniPrefix) updateBox(miniGroups, miniPrefix)
+    })
+
+    const finalMarkers: { pos: [number, number, number]; name: string; color: string }[] = []
+    groups.forEach((box, groupName) => {
+      const center = new THREE.Vector3()
+      box.getCenter(center)
+      finalMarkers.push({ pos: [center.x, center.y, center.z], name: groupName, color: '#ffeb3b' })
+    })
+    singulars.forEach((pos, objName) => {
+      finalMarkers.push({ pos: [pos.x, pos.y, pos.z], name: objName, color: '#ffeb3b' })
+    })
+
+    const targets: Record<string, [number, number, number]> = {}
+    miniGroups.forEach((box, key) => {
+      const center = new THREE.Vector3()
+      box.getCenter(center)
+      targets[key] = [center.x, center.y, center.z]
+    })
+    groups.forEach((box, key) => {
+      const center = new THREE.Vector3()
+      box.getCenter(center)
+      const label = key === 'L_GRID' ? 'GROUP GRASS' : key.replace('_GRID', '')
+      targets[label] = [center.x, center.y, center.z]
+    })
+
+    return { markers: finalMarkers, minimapTargets: targets }
+  }, [scene, rockTexture, grassTexture, concreteTexture, sandTexture, isvTexture, topNewTexture])
+
+  React.useEffect(() => {
+    if (onTargetsUpdate && Object.keys(minimapTargets).length > 0) {
+      onTargetsUpdate(minimapTargets)
+    }
+  }, [minimapTargets, onTargetsUpdate])
 
   return (
     <group {...props} dispose={null}>
-      <group position={[0.599, 1.472, -6.877]} rotation={[0, -0.04, 0]}>
-        {Object.entries(nodes).map(([name, node]) => {
-          // Robust check: ensure it's a mesh and has geometry
-          const mesh = node as THREE.Mesh
-          if (!mesh || !mesh.isMesh || !mesh.geometry) return null
-          
-          // Get the original material
-          const materialRef = mesh.material
-          if (!materialRef) {
-            return (
-              <mesh 
-                key={name}
-                geometry={mesh.geometry} 
-                castShadow 
-                receiveShadow
-              />
-            )
-          }
-
-          // Handle array of materials or single material
-          let material = Array.isArray(materialRef) ? materialRef[0] : materialRef
-          const stdMat = material as THREE.MeshStandardMaterial
-
-          // Manual Mapping based on user instructions:
-          // "Material 008 is the rock THe object is called RockN, Concreate and grass are for the zones"
-          if (stdMat && stdMat.name === 'Material.008' || name.includes('RockN')) {
-            const rockMat = stdMat.clone()
-            rockMat.map = rockTexture
-            rockMat.name = 'ROCK_OVERRIDE'
-            material = rockMat
-          } else if (stdMat && stdMat.name === 'CONCRETE') {
-            const concMat = stdMat.clone()
-            concMat.map = concreteTexture
-            concMat.name = 'CONCRETE_OVERRIDE'
-            material = concMat
-          } else if (stdMat && (stdMat.name === 'GRASS' || stdMat.name === 'Grass')) {
-            const grassMat = stdMat.clone()
-            grassMat.map = grassTexture
-            grassMat.name = 'GRASS_OVERRIDE'
-            material = grassMat
-          }
-
-          return (
-            <mesh 
-              key={name}
-              geometry={mesh.geometry} 
-              material={material} 
-              castShadow 
-              receiveShadow
-            />
-          )
-        })}
-      </group>
+      <primitive object={scene} />
     </group>
   )
 }
-
-useGLTF.preload('/FINAL_GROUND.glb')

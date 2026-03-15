@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { MousePointer2, Pencil, Trash2, Eraser, Box, Circle, Camera, Monitor, TabletSmartphone, Undo2, LayoutGrid } from 'lucide-react';
+import { MousePointer2, Pencil, Trash2, Eraser, Box, User, Camera, Wrench, LayoutGrid, Circle } from 'lucide-react';
 import { ToolMode, CameraMode } from '../types';
 
 interface ToolbarProps {
@@ -13,10 +13,10 @@ interface ToolbarProps {
   onPencilWidthChange: (width: number) => void;
   eraserWidth: number;
   onEraserWidthChange: (width: number) => void;
-  onUndo: () => void;
-  hasPaths3D: boolean;
-  deviceMode: 'desktop' | 'tablet';
-  onToggleDeviceMode: () => void;
+  cameraMode: CameraMode;
+  onCameraModeChange: (mode: CameraMode) => void;
+  showSceneControls: boolean;
+  onToggleSceneControls: () => void;
 }
 
 const COLORS = [
@@ -50,10 +50,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onPencilWidthChange,
   eraserWidth,
   onEraserWidthChange,
-  onUndo,
-  hasPaths3D,
-  deviceMode,
-  onToggleDeviceMode,
+  cameraMode,
+  onCameraModeChange,
+  showSceneControls,
+  onToggleSceneControls,
 }) => {
   const is2DMode = tool === 'pencil' || tool === 'eraser';
   const isEraser = tool === 'eraser' || tool === 'eraser3d';
@@ -91,18 +91,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
           setWidth(isEraser ? 100 : 8);
           break;
 
-        case 'z':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            onUndo();
-          }
+        case 'c':
+          e.preventDefault();
+          onCameraModeChange(cameraMode === 'orbit' ? 'thirdperson' : 'orbit');
           break;
       }
     };
 
     globalThis.addEventListener('keydown', handleKeyDown);
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
-  }, [onSelectTool, setWidth, isEraser, onUndo]);
+  }, [onSelectTool, setWidth, isEraser, onCameraModeChange, cameraMode]);
 
   const iconButtonClass = (active: boolean) =>
     `h-10 w-10 flex items-center justify-center rounded-md border transition-colors ${active
@@ -134,10 +132,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="h-px w-8 bg-[#3c3c3c]" />
 
       <button
+        onClick={() => onCameraModeChange(cameraMode === 'orbit' ? 'thirdperson' : 'orbit')}
         className={iconButtonClass(true)}
-        title="Orbit Mode (Camera)"
+        title={cameraMode === 'orbit' ? 'Switch to Third Person (C)' : 'Switch to Orbit Mode (C)'}
       >
-        <Camera size={18} />
+        {cameraMode === 'orbit' ? <Camera size={18} /> : <User size={18} />}
       </button>
 
       {tool === 'pencil' && (
@@ -182,22 +181,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="h-px w-8 bg-[#3c3c3c]" />
 
       <button
-        onClick={onToggleDeviceMode}
-        className={iconButtonClass(false)}
-        title={`Switch to ${deviceMode === 'desktop' ? 'Tablet' : 'Desktop'} Mode`}
+        onClick={onToggleSceneControls}
+        className={iconButtonClass(showSceneControls)}
+        title="Scene Settings"
       >
-        {deviceMode === 'desktop' ? <TabletSmartphone size={18} /> : <Monitor size={18} />}
-      </button>
-
-      <div className="h-px w-8 bg-[#3c3c3c]" />
-
-      <button
-        onClick={onUndo}
-        disabled={!hasPaths3D}
-        className={`${iconButtonClass(false)} ${!hasPaths3D ? 'opacity-30 cursor-not-allowed' : ''}`}
-        title="Undo last 3D stroke (Ctrl+Z)"
-      >
-        <Undo2 size={18} />
+        <Wrench size={18} className={showSceneControls ? 'rotate-45' : ''} />
       </button>
 
       <button onClick={onClear} className={iconButtonClass(false)} title="Clear all">

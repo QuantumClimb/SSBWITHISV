@@ -25,4 +25,4 @@ export interface Path3D {
 }
 
 export type ToolMode = 'view' | 'pencil' | 'pencil3d' | 'eraser' | 'eraser3d';
-export type CameraMode = 'orbit';
+export type CameraMode = 'orbit' | 'thirdperson';

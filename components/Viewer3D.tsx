@@ -3,12 +3,13 @@ import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, mem
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, Html, Line, Sphere, AccumulativeShadows, RandomizedLight, useTexture, Center } from '@react-three/drei';
 import { EffectComposer, SMAA as Smaa } from '@react-three/postprocessing';
-import { Wrench } from 'lucide-react';
+import { Wrench, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as THREE from 'three';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import simplify from 'simplify-js';
 import { Path3D, ToolMode, CameraMode } from '../types';
 import { MainModel } from './models';
+import Minimap from './Minimap';
 import { shaderTheme } from './shaders/globalShaderTheme';
 import { createSkyMaterial } from './shaders/materialFactories';
 import { GpuPicker } from './GpuPicker';
@@ -24,8 +25,10 @@ interface Viewer3DProps {
   currentColor: string;
   pencilWidth: number;
   eraserWidth: number;
-  deviceMode: 'desktop' | 'tablet';
+  cameraMode: CameraMode;
   onClear: () => void;
+  showSceneControls: boolean;
+  setShowSceneControls: (show: boolean) => void;
 }
 
 type AxisIndex = 0 | 1 | 2;
@@ -206,7 +209,8 @@ const ModelWithAnnotations = ({
   paths3D,
   skyRef,
   setActivePointCount,
-  setRaycastLatency
+  setRaycastLatency,
+  onTargetsUpdate
 }: {
   activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
@@ -218,6 +222,7 @@ const ModelWithAnnotations = ({
   skyRef: React.RefObject<THREE.Mesh | null>;
   setActivePointCount: (count: number) => void;
   setRaycastLatency: (latency: number) => void;
+  onTargetsUpdate?: (targets: Record<string, [number, number, number]>) => void;
 }) => {
   const { gl, scene, camera, size: canvasSize } = useThree();
   const gpuPicker = useMemo(() => new GpuPicker(), []);
@@ -566,6 +571,7 @@ const ModelWithAnnotations = ({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onDoubleClick={handleDoubleClick}
+          onTargetsUpdate={onTargetsUpdate}
         />
       </group>
 
@@ -616,7 +622,181 @@ const PerformanceUpdater = ({ setFps }: { setFps: (fps: number) => void }) => {
   return null;
 };
 
+interface CameraFocusManagerProps {
+  isAnimating: React.RefObject<boolean>;
+  targetPos: React.RefObject<THREE.Vector3 | null>;
+  targetLookAt: React.RefObject<THREE.Vector3 | null>;
+  controlsRef: React.RefObject<any>;
+}
+
+const CameraFocusManager = ({ isAnimating, targetPos, targetLookAt, controlsRef }: CameraFocusManagerProps) => {
+  useFrame((state, delta) => {
+    if (isAnimating.current && targetPos.current && targetLookAt.current && controlsRef.current) {
+      const lerpFactor = 10 * delta; // Increased speed from 5
+      
+      // Smoothly move camera and control target
+      state.camera.position.lerp(targetPos.current, lerpFactor);
+      controlsRef.current.target.lerp(targetLookAt.current, lerpFactor);
+      
+      // Force control update during animation
+      controlsRef.current.update();
+
+      // Loosened threshold slightly for faster handoff
+      if (state.camera.position.distanceTo(targetPos.current) < 0.2 && 
+          controlsRef.current.target.distanceTo(targetLookAt.current) < 0.2) {
+        isAnimating.current = false;
+        // Final sync for cleanliness
+        state.camera.position.copy(targetPos.current);
+        controlsRef.current.target.copy(targetLookAt.current);
+        controlsRef.current.update();
+      }
+    }
+  });
+  return null;
+};
+
 const isMobile = navigator.maxTouchPoints > 1;
+
+// Third Person Controller implementation
+const ThirdPersonController = ({ active }: { active: boolean }) => {
+  const { camera, scene } = useThree();
+  const avatarRef = useRef<THREE.Mesh>(null);
+  const keys = useRef<Record<string, boolean>>({});
+  const moveSpeed = 0.2; // Halved speed
+  const rotateSpeed = 0.02; // Reduced rotation for better control
+  const BOUNDARY = 140; // Ground area limit
+  
+  // Camera offsets
+  const cameraOffset = new THREE.Vector3(0, 5, 12); // Behind and above
+  const lookAtOffset = new THREE.Vector3(0, 1, 0); // Look slightly above the box
+
+  useEffect(() => {
+    if (!active) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => { keys.current[e.code] = true; };
+    const handleKeyUp = (e: KeyboardEvent) => { keys.current[e.code] = false; };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [active]);
+
+  useFrame((_state, _delta) => {
+    if (!active || !avatarRef.current) return;
+
+    const avatar = avatarRef.current;
+    
+    // 1. Handle Movement & Rotation
+    if (keys.current['KeyA'] || keys.current['ArrowLeft']) avatar.rotation.y += rotateSpeed;
+    if (keys.current['KeyD'] || keys.current['ArrowRight']) avatar.rotation.y -= rotateSpeed;
+
+    const moveDirection = new THREE.Vector3(0, 0, 0);
+    if (keys.current['KeyW'] || keys.current['ArrowUp']) moveDirection.z -= 1;
+    if (keys.current['KeyS'] || keys.current['ArrowDown']) moveDirection.z += 1;
+
+    if (moveDirection.z !== 0) {
+      moveDirection.applyQuaternion(avatar.quaternion);
+      const nextPos = avatar.position.clone().add(moveDirection.multiplyScalar(moveSpeed));
+      
+      // Simple AABB ground boundary check
+      if (Math.abs(nextPos.x) <= BOUNDARY && Math.abs(nextPos.z) <= BOUNDARY) {
+        avatar.position.copy(nextPos);
+      }
+    }
+
+    // Keep character floating
+    avatar.position.y = 2.5;
+
+    // 2. Update Camera Follow
+    const idealOffset = cameraOffset.clone().applyQuaternion(avatar.quaternion).add(avatar.position);
+    const idealLookAt = lookAtOffset.clone().add(avatar.position);
+
+    // Smooth camera transition
+    camera.position.lerp(idealOffset, 0.1);
+    camera.lookAt(idealLookAt);
+  });
+
+  return active ? (
+    <mesh ref={avatarRef} position={[0, 2.5, 0]}>
+      <sphereGeometry args={[0.75, 32, 32]} />
+      <meshStandardMaterial color="#ffeb3b" emissive="#fbc02d" emissiveIntensity={0.5} />
+    </mesh>
+  ) : null;
+};
+
+// Movement Keypad for Third Person
+const MovementKeypad = ({ onKeyChange }: { onKeyChange: (key: string, value: boolean) => void }) => {
+  const [activeButton, setActiveButton] = React.useState<string | null>(null);
+
+  const handlePointerDown = (key: string, e: React.PointerEvent) => {
+    e.stopPropagation();
+    setActiveButton(key);
+    onKeyChange(key, true);
+  };
+
+  const handlePointerUp = (key: string) => {
+    setActiveButton(null);
+    onKeyChange(key, false);
+  };
+
+  const btnClass = (key: string) => `
+    w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg pointer-events-auto
+    ${activeButton === key ? 'bg-[#007acc] scale-95 shadow-inner' : 'bg-black/40 backdrop-blur-md border border-white/10 hover:bg-black/60'}
+    transition-all duration-100 select-none touch-none
+  `;
+
+  return (
+    <div className="absolute bottom-6 left-6 z-50 flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2 p-4 bg-black/20 backdrop-blur-sm rounded-3xl border border-white/5">
+        {/* Forward */}
+        <button 
+          className={btnClass('KeyW')}
+          onPointerDown={(e) => handlePointerDown('KeyW', e)}
+          onPointerUp={() => handlePointerUp('KeyW')}
+          onPointerLeave={() => handlePointerUp('KeyW')}
+        >
+          <ChevronUp size={32} />
+        </button>
+
+        <div className="flex gap-2">
+          {/* Left */}
+          <button 
+            className={btnClass('KeyA')}
+            onPointerDown={(e) => handlePointerDown('KeyA', e)}
+            onPointerUp={() => handlePointerUp('KeyA')}
+            onPointerLeave={() => handlePointerUp('KeyA')}
+          >
+            <ChevronLeft size={32} />
+          </button>
+
+          {/* Back */}
+          <button 
+            className={btnClass('KeyS')}
+            onPointerDown={(e) => handlePointerDown('KeyS', e)}
+            onPointerUp={() => handlePointerUp('KeyS')}
+            onPointerLeave={() => handlePointerUp('KeyS')}
+          >
+            <ChevronDown size={32} />
+          </button>
+
+          {/* Right */}
+          <button 
+            className={btnClass('KeyD')}
+            onPointerDown={(e) => handlePointerDown('KeyD', e)}
+            onPointerUp={() => handlePointerUp('KeyD')}
+            onPointerLeave={() => handlePointerUp('KeyD')}
+          >
+            <ChevronRight size={32} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Viewer3D: React.FC<Viewer3DProps> = ({
   isDrawingMode,
@@ -627,7 +807,10 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   currentColor,
   pencilWidth,
   eraserWidth,
-  deviceMode,
+  cameraMode,
+  onClear,
+  showSceneControls,
+  setShowSceneControls,
 }) => {
   const [fps, setFps] = useState(0);
   const [activePointCount, setActivePointCount] = useState(0);
@@ -642,7 +825,6 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<THREE.Camera>(null);
   const [orbitTarget, setOrbitTarget] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
-  const [showSceneControls, setShowSceneControls] = useState(false);
   const [directionalIntensity, setDirectionalIntensity] = useState(3.5);
   const [ambientIntensity, setAmbientIntensity] = useState(0.8);
   const [skyRotation, setSkyRotation] = useState<[number, number, number]>([0, 0, 0.0]);
@@ -653,7 +835,29 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
   const [maxOrbitDistance, setMaxOrbitDistance] = useState(175);
   const [cameraFov, setCameraFov] = useState(50);
+  const [minimapTargets, setMinimapTargets] = useState<Record<string, [number, number, number]>>({});
+  
+  // Camera animation state
+  const targetPosRef = useRef<THREE.Vector3 | null>(null);
+  const targetLookAtRef = useRef<THREE.Vector3 | null>(null);
+  const isAnimatingCamera = useRef(false);
 
+  const focusOnTarget = useCallback((name: string) => {
+    const posArr = minimapTargets[name];
+    if (!posArr || !cameraRef.current || !controlsRef.current) return;
+
+    const targetCenter = new THREE.Vector3(...posArr);
+    
+    // Set animation goals
+    targetLookAtRef.current = targetCenter.clone();
+    
+    // Maintain current camera height (Y) and offset by a fixed distance in Z/X for better visibility
+    // But keep the vertical perspective exactly as it is now.
+    const currentPos = cameraRef.current.position.clone();
+    targetPosRef.current = targetCenter.clone().add(new THREE.Vector3(0, currentPos.y - targetCenter.y, 60));
+    
+    isAnimatingCamera.current = true;
+  }, [minimapTargets]);
 
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
@@ -698,36 +902,24 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900">
-      {/* Scene Controls Button */}
-      <button
-        onClick={() => setShowSceneControls((prev) => !prev)}
-        className={`absolute bottom-5 ${deviceMode === 'tablet' ? 'right-5' : 'left-5'} z-30 h-9 w-9 rounded-md border border-[#3c3c3c] bg-[#252526]/95 text-[#c5c5c5] hover:bg-[#2d2d30] flex items-center justify-center`}
-        title="Scene controls"
-      >
-        <Wrench size={16} />
-      </button>
+      <Minimap targets={minimapTargets} onFocus={focusOnTarget} />
 
-      <div className="absolute top-4 right-20 z-40 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-3 text-[10px] font-mono text-[#00ff00] shadow-xl pointer-events-none space-y-1">
-        <div className="flex justify-between gap-4">
-          <span className="text-[#9d9d9d]">FPS</span>
-          <span>{fps}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-[#9d9d9d]">STROKE POINTS</span>
-          <span>{activePointCount}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-[#9d9d9d]">TOTAL PATHS</span>
-          <span>{paths3D.length}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-[#9d9d9d]">LATENCY</span>
-          <span>{raycastLatency.toFixed(2)}ms</span>
-        </div>
-      </div>
+      {cameraMode === 'thirdperson' && (
+        <MovementKeypad 
+          onKeyChange={(key, value) => {
+            // This allows us to Bridge the keypad to the controller's ref
+            // by firing synthetic keyboard events or using a global event bus.
+            // For simplicity, we'll dispatch real keyboard events.
+            const ev = new KeyboardEvent(value ? 'keydown' : 'keyup', { code: key, bubbles: true });
+            window.dispatchEvent(ev);
+          }} 
+        />
+      )}
+
+      {/* HUD Info Removed as requested */}
 
       {showSceneControls && (
-        <div className={`absolute bottom-16 ${deviceMode === 'tablet' ? 'right-5' : 'left-5'} z-30 w-72 border border-[#3c3c3c] bg-[#252526]/95 text-[#cccccc] rounded-md p-3 shadow-2xl space-y-3`}>
+        <div className="absolute bottom-16 left-5 z-30 w-72 border border-[#3c3c3c] bg-[#252526]/95 text-[#cccccc] rounded-md p-3 shadow-2xl space-y-3">
           <div className="text-[11px] uppercase tracking-[0.14em] text-[#c5c5c5]">Scene</div>
 
           <div className="space-y-2">
@@ -934,11 +1126,15 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         />
         {/* eslint-enable react/no-unknown-property */}
 
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <axesHelper args={[8]} position={orbitTarget} />
 
         <Suspense fallback={<Loader />}>
           <PerformanceUpdater setFps={setFps} />
+          <CameraFocusManager 
+            isAnimating={isAnimatingCamera} 
+            targetPos={targetPosRef} 
+            targetLookAt={targetLookAtRef} 
+            controlsRef={controlsRef} 
+          />
           <ModelWithAnnotations
             activeTool={activeTool}
             onAddPath3D={onAddPath3D}
@@ -950,15 +1146,18 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             skyRef={skyRef}
             setActivePointCount={setActivePointCount}
             setRaycastLatency={setRaycastLatency}
+            onTargetsUpdate={setMinimapTargets}
           />
         </Suspense>
+
+        <ThirdPersonController active={cameraMode === 'thirdperson'} />
 
         {/* Post-processing effects for better visual quality */}
         <EffectComposer multisampling={4}>
           <Smaa />
         </EffectComposer>
 
-        {!isDrawingMode && (
+        {!isDrawingMode && cameraMode === 'orbit' && (
           <OrbitControls
             ref={controlsRef}
             enabled={activeTool === 'view'}
@@ -974,6 +1173,14 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             minPolarAngle={0}
             maxPolarAngle={Math.PI * 0.45}
             enablePan={true}
+            onChange={(e) => {
+              if (e?.target && !isAnimatingCamera.current) {
+                // Prevent panning under the ground by clamping target Y
+                if (e.target.target.y < 0) {
+                  e.target.target.y = 0;
+                }
+              }
+            }}
           />
         )}
       </Canvas>
