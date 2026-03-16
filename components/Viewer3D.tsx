@@ -7,8 +7,8 @@ import { Wrench, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucid
 import * as THREE from 'three';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import simplify from 'simplify-js';
-import { Path3D, ToolMode, CameraMode } from '../types';
-import { MainModel } from './models';
+import { Path3D, ToolMode, CameraMode, Measurement } from '../types';
+import { MainModel, Man } from './models';
 import Minimap from './Minimap';
 import { shaderTheme } from './shaders/globalShaderTheme';
 import { createSkyMaterial } from './shaders/materialFactories';
@@ -29,6 +29,9 @@ interface Viewer3DProps {
   onClear: () => void;
   showSceneControls: boolean;
   setShowSceneControls: (show: boolean) => void;
+  measurements: Measurement[];
+  onAddMeasurement: (m: Measurement) => void;
+  onRemoveMeasurement: (id: string) => void;
 }
 
 type AxisIndex = 0 | 1 | 2;
@@ -210,7 +213,10 @@ const ModelWithAnnotations = ({
   skyRef,
   setActivePointCount,
   setRaycastLatency,
-  onTargetsUpdate
+  onTargetsUpdate,
+  measurements,
+  onAddMeasurement,
+  onRemoveMeasurement
 }: {
   activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
@@ -223,6 +229,9 @@ const ModelWithAnnotations = ({
   setActivePointCount: (count: number) => void;
   setRaycastLatency: (latency: number) => void;
   onTargetsUpdate?: (targets: Record<string, [number, number, number]>) => void;
+  measurements: Measurement[];
+  onAddMeasurement: (m: Measurement) => void;
+  onRemoveMeasurement: (id: string) => void;
 }) => {
   const { gl, scene, camera, size: canvasSize } = useThree();
   const gpuPicker = useMemo(() => new GpuPicker(), []);
@@ -262,6 +271,9 @@ const ModelWithAnnotations = ({
 
   const lastTapTimeRef = useRef(0);
   const lastTapPosRef = useRef({ x: 0, y: 0 });
+
+  // Measurement state
+  const [tempMeasurement, setTempMeasurement] = useState<{ start: THREE.Vector3; end: THREE.Vector3 | null } | null>(null);
 
   // Precompute bounding spheres for all paths — only recalculated when paths change
   const boundsMap = useMemo(() => {
@@ -406,17 +418,9 @@ const ModelWithAnnotations = ({
   }, [paths3D, eraserWidth, checkPathIntersection, onRemovePath3D]);
 
   const handlePointerDown = useCallback((e: any) => {
-    // iPad Focus: Double tap detection logic
-
-
     if (activeTool === 'pencil3d' || activeTool === 'eraser3d') {
       e.stopPropagation();
-
-      const mouse = {
-        x: e.pointer.x,
-        y: e.pointer.y
-      };
-
+      const mouse = { x: e.pointer.x, y: e.pointer.y };
       const surface = getSurfacePointGPU(mouse);
       if (surface) {
         isDrawing3D.current = true;
@@ -426,8 +430,30 @@ const ModelWithAnnotations = ({
           eraseAt(surface.point);
         }
       }
+    } else if (activeTool === 'measure') {
+      e.stopPropagation();
+      const mouse = { x: e.pointer.x, y: e.pointer.y };
+      const surface = getSurfacePointGPU(mouse);
+      if (surface) {
+        if (!tempMeasurement) {
+          // Start a new measurement
+          setTempMeasurement({ start: surface.point, end: surface.point.clone() });
+        } else {
+          // Finish the measurement
+          const distance = tempMeasurement.start.distanceTo(surface.point);
+          if (distance > 0.01) {
+            onAddMeasurement({
+              id: Math.random().toString(36).substring(2, 11),
+              start: { x: tempMeasurement.start.x, y: tempMeasurement.start.y, z: tempMeasurement.start.z },
+              end: { x: surface.point.x, y: surface.point.y, z: surface.point.z },
+              distance
+            });
+          }
+          setTempMeasurement(null);
+        }
+      }
     }
-  }, [activeTool, getSurfacePointGPU, eraseAt]);
+  }, [activeTool, getSurfacePointGPU, eraseAt, tempMeasurement, onAddMeasurement]);
 
   const handleDoubleClick = useCallback((e: any) => {
     if (activeTool !== 'view') return;
@@ -436,11 +462,7 @@ const ModelWithAnnotations = ({
 
   const handlePointerMove = useCallback((e: any) => {
     const now = performance.now();
-
-    const mouse = {
-      x: e.pointer.x,
-      y: e.pointer.y
-    };
+    const mouse = { x: e.pointer.x, y: e.pointer.y };
 
     if (now - lastHoverTimeRef.current > HOVER_THROTTLE_MS) {
       const surface = getSurfacePointGPU(mouse);
@@ -460,7 +482,6 @@ const ModelWithAnnotations = ({
         setRaycastLatency(end - start);
         if (surface) {
           const lastPoint = currentPointsRef.current.at(-1);
-          // Aggressively reduced segments: 0.1 sampling distance instead of 0.02
           if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.1) {
             currentPointsRef.current.push(surface.point);
             setActivePointCount(currentPointsRef.current.length);
@@ -472,8 +493,13 @@ const ModelWithAnnotations = ({
           eraseAt(surface.point);
         }
       }
+    } else if (activeTool === 'measure' && tempMeasurement) {
+      const surface = getSurfacePointRaycast(mouse);
+      if (surface) {
+        setTempMeasurement(prev => prev ? { ...prev, end: surface.point } : null);
+      }
     }
-  }, [activeTool, getSurfacePointGPU, getSurfacePointRaycast, eraseAt, setActivePointCount, setRaycastLatency]);
+  }, [activeTool, getSurfacePointGPU, getSurfacePointRaycast, eraseAt, setActivePointCount, setRaycastLatency, tempMeasurement]);
 
   const handlePointerUp = useCallback(() => {
     if (isDrawing3D.current) {
@@ -599,6 +625,11 @@ const ModelWithAnnotations = ({
       <group ref={annotationsRef}>
         <primitive object={liveLineObjRef.current} />
         <LineGroup paths3D={paths3D} />
+        <MeasurementRenderer 
+          measurements={measurements} 
+          tempMeasurement={tempMeasurement}
+          onRemove={onRemoveMeasurement}
+        />
       </group>
     </>
   );
@@ -655,12 +686,42 @@ const CameraFocusManager = ({ isAnimating, targetPos, targetLookAt, controlsRef 
   return null;
 };
 
+const CameraDebugUpdater = ({ controlsRef, cameraRef, active }: { controlsRef: React.RefObject<any>; cameraRef: React.RefObject<THREE.Camera>; active: boolean }) => {
+  useFrame(() => {
+    if (!active) return;
+    
+    // Update Position
+    if (cameraRef.current) {
+      const p = cameraRef.current.position;
+      (['x', 'y', 'z'] as const).forEach(axis => {
+        const el = document.getElementById(`cam-pos-${axis}`);
+        if (el) el.innerText = p[axis].toFixed(2);
+      });
+    }
+
+    // Update Target and Polar Angle from controls
+    if (controlsRef.current) {
+      const t = controlsRef.current.target;
+      (['x', 'y', 'z'] as const).forEach(axis => {
+        const el = document.getElementById(`cam-target-${axis}`);
+        if (el) el.innerText = t[axis].toFixed(2);
+      });
+
+      const pa = controlsRef.current.getPolarAngle();
+      const elPa = document.getElementById('cam-polar-angle');
+      if (elPa) elPa.innerText = pa.toFixed(3);
+    }
+  });
+
+  return null;
+};
+
 const isMobile = navigator.maxTouchPoints > 1;
 
 // Third Person Controller implementation
 const ThirdPersonController = ({ active }: { active: boolean }) => {
   const { camera, scene } = useThree();
-  const avatarRef = useRef<THREE.Mesh>(null);
+  const avatarRef = useRef<THREE.Group>(null);
   const keys = useRef<Record<string, boolean>>({});
   const moveSpeed = 0.2; // Halved speed
   const rotateSpeed = 0.02; // Reduced rotation for better control
@@ -708,8 +769,8 @@ const ThirdPersonController = ({ active }: { active: boolean }) => {
       }
     }
 
-    // Keep character floating
-    avatar.position.y = 2.5;
+    // Keep character on ground
+    avatar.position.y = 0; // Model likely has its feet at 0
 
     // 2. Update Camera Follow
     const idealOffset = cameraOffset.clone().applyQuaternion(avatar.quaternion).add(avatar.position);
@@ -721,10 +782,9 @@ const ThirdPersonController = ({ active }: { active: boolean }) => {
   });
 
   return active ? (
-    <mesh ref={avatarRef} position={[0, 2.5, 0]}>
-      <sphereGeometry args={[0.75, 32, 32]} />
-      <meshStandardMaterial color="#ffeb3b" emissive="#fbc02d" emissiveIntensity={0.5} />
-    </mesh>
+    <group ref={avatarRef} position={[0, 0, 0]}>
+      <Man scale={1.5} rotation={[0, Math.PI, 0]} />
+    </group>
   ) : null;
 };
 
@@ -798,6 +858,87 @@ const MovementKeypad = ({ onKeyChange }: { onKeyChange: (key: string, value: boo
   );
 };
 
+// Component to render all saved measurements
+const MeasurementRenderer = ({ 
+  measurements, 
+  tempMeasurement, 
+  onRemove 
+}: { 
+  measurements: Measurement[], 
+  tempMeasurement: { start: THREE.Vector3; end: THREE.Vector3 | null } | null,
+  onRemove: (id: string) => void
+}) => {
+  return (
+    <group>
+      {/* Saved Measurements */}
+      {measurements.map((m) => (
+        <group key={m.id}>
+          <Line
+            points={[
+              [m.start.x, m.start.y, m.start.z],
+              [m.end.x, m.end.y, m.end.z]
+            ]}
+            color="#00e5ff"
+            lineWidth={2}
+          />
+          <Html position={[
+            (m.start.x + m.end.x) / 2,
+            (m.start.y + m.end.y) / 2,
+            (m.start.z + m.end.z) / 2
+          ]}>
+            <div className="bg-black/80 text-[#00e5ff] px-2 py-1 rounded-md text-[10px] font-bold border border-[#00e5ff]/30 whitespace-nowrap flex items-center gap-2 group">
+              {m.distance.toFixed(2)}m
+              <button 
+                onClick={(e) => { e.stopPropagation(); onRemove(m.id); }}
+                className="hover:text-red-500 transition-colors"
+              >
+                ×
+              </button>
+            </div>
+          </Html>
+          {/* Small spheres at endpoints */}
+          <Sphere position={[m.start.x, m.start.y, m.start.z]} args={[0.05, 16, 16]}>
+            <meshBasicMaterial color="#00e5ff" />
+          </Sphere>
+          <Sphere position={[m.end.x, m.end.y, m.end.z]} args={[0.05, 16, 16]}>
+            <meshBasicMaterial color="#00e5ff" />
+          </Sphere>
+        </group>
+      ))}
+
+      {/* Temporary Measurement (in progress) */}
+      {tempMeasurement && tempMeasurement.start && tempMeasurement.end && (
+        <group>
+          <Line
+            points={[
+              [tempMeasurement.start.x, tempMeasurement.start.y, tempMeasurement.start.z],
+              [tempMeasurement.end.x, tempMeasurement.end.y, tempMeasurement.end.z]
+            ]}
+            color="#00e5ff"
+            lineWidth={1}
+            dashed
+            dashScale={50}
+            dashSize={0.5}
+            gapSize={0.5}
+          />
+          <Html position={[
+            (tempMeasurement.start.x + tempMeasurement.end.x) / 2,
+            (tempMeasurement.start.y + tempMeasurement.end.y) / 2,
+            (tempMeasurement.start.z + tempMeasurement.end.z) / 2
+          ]}>
+            <div className="bg-black/60 text-[#00e5ff] px-2 py-1 rounded-md text-[10px] opacity-80 border border-[#00e5ff]/20 pointer-events-none">
+              {tempMeasurement.start.distanceTo(tempMeasurement.end).toFixed(2)}m
+            </div>
+          </Html>
+          <Sphere position={[tempMeasurement.start.x, tempMeasurement.start.y, tempMeasurement.start.z]} args={[0.04, 16, 16]}>
+            <meshBasicMaterial color="#00e5ff" />
+          </Sphere>
+        </group>
+      )}
+    </group>
+  );
+};
+
 const Viewer3D: React.FC<Viewer3DProps> = ({
   isDrawingMode,
   activeTool,
@@ -811,6 +952,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   onClear,
   showSceneControls,
   setShowSceneControls,
+  measurements,
+  onAddMeasurement,
+  onRemoveMeasurement,
 }) => {
   const [fps, setFps] = useState(0);
   const [activePointCount, setActivePointCount] = useState(0);
@@ -831,9 +975,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [skyScale, setSkyScale] = useState(220);
   const [fogEnabled, setFogEnabled] = useState(true);
   const [fogDistance, setFogDistance] = useState(480);
-  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 0, 180]);
-
+  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 13, 150]);
   const [maxOrbitDistance, setMaxOrbitDistance] = useState(175);
+  const [maxPolarAngle, setMaxPolarAngle] = useState(1.5);
   const [cameraFov, setCameraFov] = useState(50);
   const [minimapTargets, setMinimapTargets] = useState<Record<string, [number, number, number]>>({});
   
@@ -858,6 +1002,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
     
     isAnimatingCamera.current = true;
   }, [minimapTargets]);
+
+  const handleReset = useCallback(() => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    targetLookAtRef.current = new THREE.Vector3(0, 0.5, 0); // Slight Y to view ground
+    targetPosRef.current = new THREE.Vector3(0, 13, 150);
+    isAnimatingCamera.current = true;
+  }, []);
 
   const { sunPosition, sunColor, sunIntensity } = useMemo(() => {
     // Fixed sun position (14:00 / 2pm)
@@ -902,7 +1053,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900">
-      <Minimap targets={minimapTargets} onFocus={focusOnTarget} />
+      <Minimap targets={minimapTargets} onFocus={focusOnTarget} onReset={handleReset} />
 
       {cameraMode === 'thirdperson' && (
         <MovementKeypad 
@@ -1012,41 +1163,39 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
           <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
             <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Camera Axis</div>
-            <div className="text-[11px] text-[#9d9d9d]">Position</div>
             <div className="grid grid-cols-3 gap-2">
-              {(['X', 'Y', 'Z'] as const).map((axis, index) => (
-                <input
+              {(['X', 'Y', 'Z'] as const).map((axis) => (
+                <div
                   key={`pos-${axis}`}
-                  type="number"
-                  step="0.1"
-                  value={cameraPosition[index]}
-                  onChange={(e) => updateAxis(setCameraPosition, index as AxisIndex, Number.parseFloat(e.target.value || '0'))}
-                  className="h-8 px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm outline-none focus:border-[#007acc]"
+                  className="h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#007acc] font-mono"
                   title={`Camera ${axis}`}
-                />
+                >
+                  <span className="text-[#9d9d9d] mr-1">{axis}:</span>
+                  <span id={`cam-pos-${axis.toLowerCase()}`}>0.0</span>
+                </div>
               ))}
             </div>
 
             <div className="text-[11px] text-[#9d9d9d]">Target</div>
             <div className="grid grid-cols-3 gap-2">
-              {(['x', 'y', 'z'] as const).map((axis) => (
-                <input
+              {(['X', 'Y', 'Z'] as const).map((axis) => (
+                <div
                   key={`target-${axis}`}
-                  type="number"
-                  step="0.1"
-                  value={orbitTarget[axis]}
-                  onChange={(e) => {
-                    const val = Number.parseFloat(e.target.value || '0');
-                    setOrbitTarget(prev => {
-                      const next = prev.clone();
-                      next[axis] = val;
-                      return next;
-                    });
-                  }}
-                  className="h-8 px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm outline-none focus:border-[#007acc]"
-                  title={`Target ${axis.toUpperCase()}`}
-                />
+                  className="h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#007acc] font-mono"
+                  title={`Target ${axis}`}
+                >
+                  <span className="text-[#9d9d9d] mr-1">{axis}:</span>
+                  <span id={`cam-target-${axis.toLowerCase()}`}>0.0</span>
+                </div>
               ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">Live Polar</span>
+              <div className="flex-1 h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#007acc] font-mono">
+                <span id="cam-polar-angle">0.00</span>
+                <span className="text-[#9d9d9d] ml-1">rad</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1061,6 +1210,20 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 className="flex-1 accent-[#007acc]"
               />
               <span className="text-[11px] w-10 text-right">{maxOrbitDistance}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">Polar Angle</span>
+              <input
+                type="range"
+                min="0"
+                max="3.14"
+                step="0.01"
+                value={maxPolarAngle}
+                onChange={(e) => setMaxPolarAngle(Number.parseFloat(e.target.value))}
+                className="flex-1 accent-[#007acc]"
+              />
+              <span className="text-[11px] w-10 text-right">{maxPolarAngle.toFixed(2)}</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1135,6 +1298,11 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             targetLookAt={targetLookAtRef} 
             controlsRef={controlsRef} 
           />
+          <CameraDebugUpdater
+            controlsRef={controlsRef}
+            cameraRef={cameraRef as React.RefObject<THREE.Camera>}
+            active={showSceneControls}
+          />
           <ModelWithAnnotations
             activeTool={activeTool}
             onAddPath3D={onAddPath3D}
@@ -1147,6 +1315,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             setActivePointCount={setActivePointCount}
             setRaycastLatency={setRaycastLatency}
             onTargetsUpdate={setMinimapTargets}
+            measurements={measurements}
+            onAddMeasurement={onAddMeasurement}
+            onRemoveMeasurement={onRemoveMeasurement}
           />
         </Suspense>
 
@@ -1171,13 +1342,30 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             minDistance={10}
             maxDistance={maxOrbitDistance}
             minPolarAngle={0}
-            maxPolarAngle={Math.PI * 0.45}
+            maxPolarAngle={maxPolarAngle}
             enablePan={true}
             onChange={(e) => {
-              if (e?.target && !isAnimatingCamera.current) {
-                // Prevent panning under the ground by clamping target Y
+              if (e?.target && !isAnimatingCamera.current && cameraRef.current) {
+                let changed = false;
+                
+                // 1. Prevent target from going under ground
                 if (e.target.target.y < 0) {
                   e.target.target.y = 0;
+                  changed = true;
+                }
+
+                // 2. Prevent camera itself from going under ground (min height 1.0)
+                const minCamY = 1.0;
+                if (cameraRef.current.position.y < minCamY) {
+                  const diff = minCamY - cameraRef.current.position.y;
+                  cameraRef.current.position.y = minCamY;
+                  // Move the target up by the same amount to preserve the angle
+                  e.target.target.y += diff;
+                  changed = true;
+                }
+
+                if (changed) {
+                  e.target.update();
                 }
               }
             }}

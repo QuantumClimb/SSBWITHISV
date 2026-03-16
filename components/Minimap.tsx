@@ -5,9 +5,10 @@ import { Map, ChevronDown, ChevronUp } from 'lucide-react';
 interface MinimapProps {
   targets: Record<string, [number, number, number]>;
   onFocus: (targetName: string) => void;
+  onReset: () => void;
 }
 
-const Minimap: React.FC<MinimapProps> = ({ targets, onFocus }) => {
+const Minimap: React.FC<MinimapProps> = ({ targets, onFocus, onReset }) => {
   const [isOpen, setIsOpen] = useState(false);
   const zoneNames = Object.keys(targets);
   
@@ -51,8 +52,14 @@ const Minimap: React.FC<MinimapProps> = ({ targets, onFocus }) => {
         <div className="bg-[#252526]/95 backdrop-blur-md border border-[#3c3c3c] p-3 rounded-md shadow-2xl flex flex-col gap-2 w-80 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="text-[11px] uppercase tracking-[0.14em] text-[#9d9d9d] mb-1 px-1">Quick Navigation</div>
           
-          {/* Row 1: GROUP OBSTACLES */}
-          <div className="grid grid-cols-1">
+          {/* Row 1: GROUP OBSTACLES & RESET */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+               onClick={onReset}
+               className="px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#007acc] border border-[#007acc] text-white hover:bg-[#005a9e] transition-all duration-150 flex items-center justify-center text-center shadow-lg"
+            >
+              RESET POSITION
+            </button>
             <Button name="GROUP OBSTACLES" />
           </div>
 

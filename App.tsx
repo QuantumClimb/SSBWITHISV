@@ -4,7 +4,7 @@ import Viewer3D from './components/Viewer3D';
 import AnnotationCanvas from './components/AnnotationCanvas';
 import Toolbar from './components/Toolbar';
 import Login from './components/Login';
-import { Path, Path3D, ToolMode, CameraMode } from './types';
+import { Path, Path3D, ToolMode, CameraMode, Measurement } from './types';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [eraserWidth, setEraserWidth] = useState(40);
   const [paths, setPaths] = useState<Path[]>([]);
   const [paths3D, setPaths3D] = useState<Path3D[]>([]);
+  const [measurements, setMeasurements] = useState<Measurement[]>([]);
 
   const is2DDrawingMode = tool === 'pencil' || tool === 'eraser';
   const is3DDrawingMode = tool === 'pencil3d' || tool === 'eraser3d';
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const clearAnnotations = useCallback(() => {
     setPaths([]);
     setPaths3D([]);
+    setMeasurements([]);
   }, []);
 
   const addPath = useCallback((newPath: Path) => {
@@ -43,6 +45,14 @@ const App: React.FC = () => {
 
   const undoPath3D = useCallback(() => {
     setPaths3D((prev) => prev.slice(0, -1));
+  }, []);
+
+  const addMeasurement = useCallback((m: Measurement) => {
+    setMeasurements((prev) => [...prev, m]);
+  }, []);
+
+  const removeMeasurement = useCallback((id: string) => {
+    setMeasurements((prev) => prev.filter(m => m.id !== id));
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
@@ -69,6 +79,9 @@ const App: React.FC = () => {
         onClear={clearAnnotations}
         showSceneControls={showSceneControls}
         setShowSceneControls={setShowSceneControls}
+        measurements={measurements}
+        onAddMeasurement={addMeasurement}
+        onRemoveMeasurement={removeMeasurement}
       />
 
       {/* 2D Annotation Overlay Layer */}

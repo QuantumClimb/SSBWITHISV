@@ -24,5 +24,12 @@ export interface Path3D {
   width: number;
 }
 
-export type ToolMode = 'view' | 'pencil' | 'pencil3d' | 'eraser' | 'eraser3d';
+export interface Measurement {
+  id: string;
+  start: Vector3;
+  end: Vector3;
+  distance: number;
+}
+
+export type ToolMode = 'view' | 'pencil' | 'pencil3d' | 'eraser' | 'eraser3d' | 'measure';
 export type CameraMode = 'orbit' | 'thirdperson';

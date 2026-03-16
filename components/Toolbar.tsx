@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { MousePointer2, Pencil, Trash2, Eraser, Box, User, Camera, Wrench, LayoutGrid, Circle } from 'lucide-react';
+import { MousePointer2, Pencil, Trash2, Eraser, Box, User, Camera, Wrench, LayoutGrid, Circle, Ruler } from 'lucide-react';
 import { ToolMode, CameraMode } from '../types';
 
 interface ToolbarProps {
@@ -95,6 +95,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
           e.preventDefault();
           onCameraModeChange(cameraMode === 'orbit' ? 'thirdperson' : 'orbit');
           break;
+        case 'm':
+          e.preventDefault();
+          onSelectTool('measure');
+          break;
       }
     };
 
@@ -127,6 +131,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <Eraser size={18} />
           <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-[#569cd6]" />
         </div>
+      </button>
+      <button onClick={() => onSelectTool('measure')} className={iconButtonClass(tool === 'measure')} title="Measure (M)">
+        <Ruler size={18} />
       </button>
 
       <div className="h-px w-8 bg-[#3c3c3c]" />

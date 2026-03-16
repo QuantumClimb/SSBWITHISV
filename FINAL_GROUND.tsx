@@ -505,7 +505,6 @@ type GLTFResult = GLTF & {
     HGT3_R2CA_0004: THREE.Mesh
     HGT3_R2CA_0005: THREE.Mesh
     HGT3_R2CA_0006: THREE.Mesh
-    HGT3_R2LA_0001: THREE.Mesh
     HGT3_R2LA_0002: THREE.Mesh
     Cylinder193: THREE.Mesh
     Cylinder193_1: THREE.Mesh
@@ -579,33 +578,28 @@ type GLTFResult = GLTF & {
     Plane001_18: THREE.Mesh
     Plane001_19: THREE.Mesh
     Plane001_20: THREE.Mesh
-    Plane_37: THREE.Mesh
-    Plane_38: THREE.Mesh
-    Plane_39: THREE.Mesh
-    Plane_40: THREE.Mesh
-    Plane_41: THREE.Mesh
-    Plane_42: THREE.Mesh
-    Plane_43: THREE.Mesh
-    Plane_44: THREE.Mesh
-    Plane_45: THREE.Mesh
-    Plane_46: THREE.Mesh
-    Plane_47: THREE.Mesh
-    Plane_48: THREE.Mesh
-    Plane_49: THREE.Mesh
-    Plane_50: THREE.Mesh
-    Plane_51: THREE.Mesh
-    Plane_52: THREE.Mesh
-    Plane_53: THREE.Mesh
-    Plane_54: THREE.Mesh
-    Plane_55: THREE.Mesh
-    Plane_56: THREE.Mesh
+    PGT_GRID_2: THREE.Mesh
+    PGT_GRID_3: THREE.Mesh
+    PGT_GRID_4: THREE.Mesh
+    PGT_GRID_5: THREE.Mesh
+    PGT_GRID_6: THREE.Mesh
+    PGT_GRID_7: THREE.Mesh
+    PGT_GRID_8: THREE.Mesh
+    PGT_GRID_9: THREE.Mesh
+    PGT_GRID_10: THREE.Mesh
+    PGT_GRID_11: THREE.Mesh
+    PGT_GRID_12: THREE.Mesh
+    PGT_GRID_13: THREE.Mesh
+    PGT_GRID_14: THREE.Mesh
+    PGT_GRID_15: THREE.Mesh
+    PGT_GRID_16: THREE.Mesh
+    PGT_GRID_17: THREE.Mesh
+    PGT_GRID_18: THREE.Mesh
+    PGT_GRID_19: THREE.Mesh
+    PGT_GRID_20: THREE.Mesh
+    PGT_GRID_21: THREE.Mesh
     Text_1: THREE.Mesh
-    Text001: THREE.Mesh
-    Text002: THREE.Mesh
-    Text003: THREE.Mesh
-    Text004: THREE.Mesh
-    Text005: THREE.Mesh
-    CT_GRID_1: THREE.Mesh
+    PGT_GROUND: THREE.Mesh
     Border_1: THREE.Mesh
     branches1002: THREE.Mesh
     branches1002_1: THREE.Mesh
@@ -815,6 +809,7 @@ type GLTFResult = GLTF & {
     ['Material.005']: THREE.MeshStandardMaterial
     ['Material.006']: THREE.MeshStandardMaterial
     Green2: THREE.MeshStandardMaterial
+    WHITE: THREE.MeshStandardMaterial
     ['Material.002']: THREE.MeshStandardMaterial
     ['Material.039']: THREE.MeshStandardMaterial
     Palm_Bark: THREE.MeshStandardMaterial
@@ -1441,7 +1436,7 @@ export function Model(props: JSX.IntrinsicElements['group']) {
             <mesh geometry={nodes.HGT1_R1LA_0002.geometry} material={nodes.HGT1_R1LA_0002.material} position={[-0.004, -0.301, 0.169]} rotation={[Math.PI / 2, 0, Math.PI]} scale={[0.511, 0.457, 0.397]} />
             <mesh geometry={nodes.HGT1_R1LA_0003.geometry} material={nodes.HGT1_R1LA_0003.material} position={[-0.356, -0.013, -0.131]} rotation={[Math.PI / 2, 0, 0]} />
             <mesh geometry={nodes.HGT1_R1LA_0004.geometry} material={nodes.HGT1_R1LA_0004.material} position={[0.356, -0.013, -0.131]} rotation={[Math.PI / 2, 0, 0]} />
-            <mesh geometry={nodes.HGT1_R1LA_0005.geometry} material={nodes.HGT1_R1LA_0005.material} position={[0.001, -0.342, 0]} scale={[2.322, 0.303, 3.004]} />
+            <mesh geometry={nodes.HGT1_R1LA_0005.geometry} material={materials.WHITE} position={[0.001, -0.342, 0]} scale={[2.322, 0.303, 3.004]} />
           </group>
           <group position={[0.143, 0.222, 2.078]}>
             <group position={[0, 0.303, -0.347]} rotation={[1.566, 0, -Math.PI / 2]} scale={[-0.059, -0.405, -0.043]}>
@@ -1537,7 +1532,7 @@ export function Model(props: JSX.IntrinsicElements['group']) {
             <mesh geometry={nodes.HGT2_R2LA_0002.geometry} material={materials.WHITE} position={[0.144, -0.009, -0.297]} rotation={[-3.139, 0.005, 2.691]} scale={[0.054, 0.463, 0.063]} />
             <mesh geometry={nodes.HGT2_R2LA_0003.geometry} material={materials.WHITE} position={[0.001, 0.367, -0.307]} rotation={[-Math.PI / 2, 0.005, Math.PI]} scale={[-0.115, -0.072, -0.082]} />
             <mesh geometry={nodes.HGT2_R2LA_0005.geometry} material={materials.WHITE} position={[0.228, -0.191, -0.125]} rotation={[1.577, 1.566, -0.006]} scale={[0.039, 0.337, 0.035]} />
-            <mesh geometry={nodes.HGT2_R2LA_0006.geometry} material={nodes.HGT2_R2LA_0006.material} position={[-0.005, -0.234, 0.335]} />
+            <mesh geometry={nodes.HGT2_R2LA_0006.geometry} material={materials.WHITE} position={[-0.005, -0.234, 0.335]} />
           </group>
           <group position={[-0.084, 0.25, -0.526]}>
             <mesh geometry={nodes.HGT2_R2CA_0001.geometry} material={materials.WHITE} position={[-0.03, -0.03, 0.375]} rotation={[Math.PI, -1.566, Math.PI]} scale={[0.042, 0.493, 0.052]} />
@@ -1592,7 +1587,7 @@ export function Model(props: JSX.IntrinsicElements['group']) {
             <mesh geometry={nodes.HGT3_R1RA_0001.geometry} material={nodes.HGT3_R1RA_0001.material} position={[0, -0.105, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.548, 1, 0.301]} />
             <mesh geometry={nodes.HGT3_R1RA_0002.geometry} material={nodes.HGT3_R1RA_0002.material} position={[0.008, 0.107, -0.263]} rotation={[0, 0, -Math.PI / 2]} scale={[1, 0.409, 1]} />
             <mesh geometry={nodes.HGT3_R1RA_0003.geometry} material={materials.WHITE} position={[-0.177, 0.129, -0.263]} rotation={[-Math.PI, 0, -2.7]} scale={[0.051, 0.457, 0.051]} />
-            <mesh geometry={nodes.HGT3_R1RA_0004.geometry} material={nodes.HGT3_R1RA_0004.material} position={[0.016, -0.184, -0.513]} rotation={[Math.PI / 2, 0, -Math.PI / 2]} scale={[2.205, 1, 1]} />
+            <mesh geometry={nodes.HGT3_R1RA_0004.geometry} material={materials.WHITE} position={[0.016, -0.184, -0.513]} rotation={[Math.PI / 2, 0, -Math.PI / 2]} scale={[2.205, 1, 1]} />
           </group>
           <group position={[2.466, 0.322, -1.106]}>
             <mesh geometry={nodes.HGT3_R2RA_0001.geometry} material={materials.WHITE} position={[0.292, -0.02, -0.337]} rotation={[0, 1.562, 0]} scale={[0.037, 0.319, 0.049]} />
@@ -1611,13 +1606,12 @@ export function Model(props: JSX.IntrinsicElements['group']) {
             <mesh geometry={nodes.HGT3_R2CA_0006.geometry} material={materials.WHITE} position={[0.001, -0.121, 0.344]} rotation={[Math.PI, 0, Math.PI / 2]} scale={[0.031, 0.164, 0.031]} />
           </group>
           <group position={[-2.293, 0.112, -1.141]}>
-            <mesh geometry={nodes.HGT3_R2LA_0001.geometry} material={materials.WHITE} position={[-3.227, 1.06, -1.861]} rotation={[0, 0, 2.618]} scale={[-0.061, -0.583, -0.066]} />
             <mesh geometry={nodes.HGT3_R2LA_0002.geometry} material={materials.WHITE} position={[-0.558, 0.238, -0.36]} rotation={[0, 0, 2.618]} scale={[-0.061, -0.583, -0.066]} />
             <group position={[-0.137, 0.134, -0.042]} rotation={[0, -Math.PI / 2, 0]} scale={[0.084, 0.372, 0.084]}>
               <mesh geometry={nodes.Cylinder193.geometry} material={materials.WHITE} />
               <mesh geometry={nodes.Cylinder193_1.geometry} material={materials.BLUE} />
             </group>
-            <mesh geometry={nodes.HGT3_R2LA_0004.geometry} material={nodes.HGT3_R2LA_0004.material} position={[-0.137, -0.041, 0.319]} rotation={[Math.PI / 2, 0, -Math.PI / 2]} scale={[2.205, 0.727, 1]} />
+            <mesh geometry={nodes.HGT3_R2LA_0004.geometry} material={materials.WHITE} position={[-0.137, -0.041, 0.319]} rotation={[Math.PI / 2, 0, -Math.PI / 2]} scale={[2.205, 0.727, 1]} />
             <mesh geometry={nodes.HGT3_R2LA_0005.geometry} material={nodes.HGT3_R2LA_0005.material} position={[-0.137, 0.342, 0.043]} />
           </group>
           <group position={[0.11, 0, -3.466]} rotation={[Math.PI, 0, Math.PI]}>
@@ -1703,34 +1697,29 @@ export function Model(props: JSX.IntrinsicElements['group']) {
         <mesh geometry={nodes.Plane001_20.geometry} material={materials['Dry Sand']} />
       </group>
       <group position={[-38.398, 0.1, 31.924]}>
-        <mesh geometry={nodes.Text_1.geometry} material={nodes.Text_1.material} position={[0, 0.05, 39.024]} />
-        <mesh geometry={nodes.Text001.geometry} material={nodes.Text001.material} position={[-30.165, 0.138, 29.522]} />
-        <mesh geometry={nodes.Text002.geometry} material={nodes.Text002.material} position={[-15.131, 0.138, 29.522]} />
-        <mesh geometry={nodes.Text003.geometry} material={nodes.Text003.material} position={[-0.184, 0.138, 29.522]} />
-        <mesh geometry={nodes.Text004.geometry} material={nodes.Text004.material} position={[14.741, 0.138, 29.522]} />
-        <mesh geometry={nodes.Text005.geometry} material={nodes.Text005.material} position={[29.731, 0.138, 29.522]} />
-        <mesh geometry={nodes.CT_GRID_1.geometry} material={materials['Material.002']} position={[0, -0.05, 0]} rotation={[Math.PI, 0, Math.PI]} />
+        <mesh geometry={nodes.Text_1.geometry} material={materials.WHITE} position={[0, 0.172, 39.024]} />
+        <mesh geometry={nodes.PGT_GROUND.geometry} material={materials['Material.002']} position={[0, -0.05, 0]} rotation={[Math.PI, 0, Math.PI]} />
         <mesh geometry={nodes.Border_1.geometry} material={materials['Material.039']} rotation={[Math.PI, 0, Math.PI]} />
-        <mesh geometry={nodes.Plane_37.geometry} material={nodes.Plane_37.material} />
-        <mesh geometry={nodes.Plane_38.geometry} material={materials.Green} />
-        <mesh geometry={nodes.Plane_39.geometry} material={materials.BROWN} />
-        <mesh geometry={nodes.Plane_40.geometry} material={materials.FINISH_LINE} />
-        <mesh geometry={nodes.Plane_41.geometry} material={materials.WHITE} />
-        <mesh geometry={nodes.Plane_42.geometry} material={materials.START_LINE} />
-        <mesh geometry={nodes.Plane_43.geometry} material={materials.BLUE} />
-        <mesh geometry={nodes.Plane_44.geometry} material={materials.RUBBER} />
-        <mesh geometry={nodes.Plane_45.geometry} material={materials.RED} />
-        <mesh geometry={nodes.Plane_46.geometry} material={materials['Material.007']} />
-        <mesh geometry={nodes.Plane_47.geometry} material={materials['Material.013']} />
-        <mesh geometry={nodes.Plane_48.geometry} material={materials['Material.031']} />
-        <mesh geometry={nodes.Plane_49.geometry} material={materials['Material.008']} />
-        <mesh geometry={nodes.Plane_50.geometry} material={materials['Material.009']} />
-        <mesh geometry={nodes.Plane_51.geometry} material={materials['Material.027']} />
-        <mesh geometry={nodes.Plane_52.geometry} material={materials['Material.010']} />
-        <mesh geometry={nodes.Plane_53.geometry} material={materials['Material.023']} />
-        <mesh geometry={nodes.Plane_54.geometry} material={materials['Material.005']} />
-        <mesh geometry={nodes.Plane_55.geometry} material={materials['Material.006']} />
-        <mesh geometry={nodes.Plane_56.geometry} material={materials.Green2} />
+        <mesh geometry={nodes.PGT_GRID_2.geometry} material={nodes.PGT_GRID_2.material} />
+        <mesh geometry={nodes.PGT_GRID_3.geometry} material={materials.Green} />
+        <mesh geometry={nodes.PGT_GRID_4.geometry} material={materials.BROWN} />
+        <mesh geometry={nodes.PGT_GRID_5.geometry} material={materials.FINISH_LINE} />
+        <mesh geometry={nodes.PGT_GRID_6.geometry} material={materials.WHITE} />
+        <mesh geometry={nodes.PGT_GRID_7.geometry} material={materials.START_LINE} />
+        <mesh geometry={nodes.PGT_GRID_8.geometry} material={materials.BLUE} />
+        <mesh geometry={nodes.PGT_GRID_9.geometry} material={materials.RUBBER} />
+        <mesh geometry={nodes.PGT_GRID_10.geometry} material={materials.RED} />
+        <mesh geometry={nodes.PGT_GRID_11.geometry} material={materials['Material.007']} />
+        <mesh geometry={nodes.PGT_GRID_12.geometry} material={materials['Material.013']} />
+        <mesh geometry={nodes.PGT_GRID_13.geometry} material={materials['Material.031']} />
+        <mesh geometry={nodes.PGT_GRID_14.geometry} material={materials['Material.008']} />
+        <mesh geometry={nodes.PGT_GRID_15.geometry} material={materials['Material.009']} />
+        <mesh geometry={nodes.PGT_GRID_16.geometry} material={materials['Material.027']} />
+        <mesh geometry={nodes.PGT_GRID_17.geometry} material={materials['Material.010']} />
+        <mesh geometry={nodes.PGT_GRID_18.geometry} material={materials['Material.023']} />
+        <mesh geometry={nodes.PGT_GRID_19.geometry} material={materials['Material.005']} />
+        <mesh geometry={nodes.PGT_GRID_20.geometry} material={materials['Material.006']} />
+        <mesh geometry={nodes.PGT_GRID_21.geometry} material={materials.Green2} />
       </group>
       <group rotation={[-2.952, -0.114, -2.899]}>
         <group position={[-98.81, 24.354, -11.447]} scale={0.66}>
