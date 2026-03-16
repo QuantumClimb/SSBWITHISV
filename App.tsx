@@ -4,10 +4,14 @@ import Viewer3D from './components/Viewer3D';
 import AnnotationCanvas from './components/AnnotationCanvas';
 import Toolbar from './components/Toolbar';
 import Login from './components/Login';
+import SplashScreen from './components/SplashScreen';
+import { useProgress } from '@react-three/drei';
 import { Path, Path3D, ToolMode, CameraMode, Measurement } from './types';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isStarted, setIsStarted] = useState(false);
+  const { progress, active } = useProgress();
   const [tool, setTool] = useState<ToolMode>('view');
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [showSceneControls, setShowSceneControls] = useState(false);
@@ -64,7 +68,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="relative w-screen h-screen bg-slate-900 select-none overflow-hidden text-white font-sans">
+    <div className="relative w-screen h-screen bg-[#0a0a0b] select-none overflow-hidden text-white font-sans">
+      {!isStarted && (
+        <SplashScreen onStart={() => setIsStarted(true)} />
+      )}
+      
       {/* 3D Model Layer */}
       <Viewer3D
         isDrawingMode={is3DDrawingMode}
@@ -85,39 +93,45 @@ const App: React.FC = () => {
       />
 
       {/* 2D Annotation Overlay Layer */}
-      <AnnotationCanvas
-        isDrawingMode={is2DDrawingMode}
-        activeTool={tool}
-        currentColor={color}
-        pencilWidth={pencilWidth}
-        eraserWidth={eraserWidth}
-        paths={paths}
-        onAddPath={addPath}
-      />
+      {isStarted && (
+        <AnnotationCanvas
+          isDrawingMode={is2DDrawingMode}
+          activeTool={tool}
+          currentColor={color}
+          pencilWidth={pencilWidth}
+          eraserWidth={eraserWidth}
+          paths={paths}
+          onAddPath={addPath}
+        />
+      )}
 
       {/* UI Controls Overlay */}
-      <Toolbar
-        tool={tool}
-        onSelectTool={selectTool}
-        onClear={clearAnnotations}
-        color={color}
-        onColorChange={setColor}
-        pencilWidth={pencilWidth}
-        onPencilWidthChange={setPencilWidth}
-        eraserWidth={eraserWidth}
-        onEraserWidthChange={setEraserWidth}
-        cameraMode={cameraMode}
-        onCameraModeChange={(mode) => setCameraMode(mode)}
-        showSceneControls={showSceneControls}
-        onToggleSceneControls={() => setShowSceneControls(!showSceneControls)}
-      />
+      {isStarted && (
+        <Toolbar
+          tool={tool}
+          onSelectTool={selectTool}
+          onClear={clearAnnotations}
+          color={color}
+          onColorChange={setColor}
+          pencilWidth={pencilWidth}
+          onPencilWidthChange={setPencilWidth}
+          eraserWidth={eraserWidth}
+          onEraserWidthChange={setEraserWidth}
+          cameraMode={cameraMode}
+          onCameraModeChange={(mode) => setCameraMode(mode)}
+          showSceneControls={showSceneControls}
+          onToggleSceneControls={() => setShowSceneControls(!showSceneControls)}
+        />
+      )}
 
       {/* Overlay for instructions */}
-      <div className="absolute top-6 left-6 z-20 pointer-events-none">
-        <h1 className="text-white text-xl font-bold tracking-tight drop-shadow-lg">
-          <span className="text-blue-500">SSBWITHISV</span>
-        </h1>
-      </div>
+      {isStarted && (
+        <div className="absolute top-6 left-6 z-20 pointer-events-none">
+          <h1 className="text-white text-xl font-bold tracking-tight drop-shadow-lg">
+            <span className="text-blue-500">SSBWITHISV</span>
+          </h1>
+        </div>
+      )}
     </div>
   );
 };

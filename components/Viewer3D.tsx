@@ -86,16 +86,6 @@ const simplifyPointCloud3D = (points: THREE.Vector3[], tolerance: number) => {
   return ordered.map((index) => points[index]);
 };
 
-const Loader = () => (
-  <Html center>
-    <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-white text-sm font-bold tracking-widest uppercase bg-black/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 shadow-2xl">
-        Initializing 3D Space
-      </p>
-    </div>
-  </Html>
-);
 
 // Memoized Line renderer for optimized 3D path rendering
 const LineGroup = memo(({ paths3D }: { paths3D: Path3D[] }) => {
@@ -1005,8 +995,8 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
   const handleReset = useCallback(() => {
     if (!cameraRef.current || !controlsRef.current) return;
-    targetLookAtRef.current = new THREE.Vector3(0, 0.5, 0); // Slight Y to view ground
-    targetPosRef.current = new THREE.Vector3(0, 13, 150);
+    targetLookAtRef.current = new THREE.Vector3(-2.28, 0.10, -7.62);
+    targetPosRef.current = new THREE.Vector3(1.21, 65.26, 133.47);
     isAnimatingCamera.current = true;
   }, []);
 
@@ -1290,7 +1280,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         {/* eslint-enable react/no-unknown-property */}
 
 
-        <Suspense fallback={<Loader />}>
+        <Suspense fallback={null}>
           <PerformanceUpdater setFps={setFps} />
           <CameraFocusManager 
             isAnimating={isAnimatingCamera} 
