@@ -51,9 +51,20 @@ To ensure a premium feel while masking background asset loading, the system uses
 -   **Effective Progress Logic**: Decouples "raw" asset loading from "perceived" loading UI via a minimum-duration progress interpolation.
 -   **Layered Fade Transitions**: Synchronous alpha-blending of UI backdrops, buttons, and splash screen elements over a fixed duration (2.5s) to prevent visual "popping" of high-complexity models.
 
+### 4.8 Normal-Aligned 3D Reticle Feedback System
+The system provides real-time visual anchoring for non-drawing tools (Focus, Measurement):
+- **Dynamic Orientation**: Reticle geometry is rotated using `setFromUnitVectors` to align the `(0, 1, 0)` up-vector with the surface normal retrieved from the GPU picker.
+- **Contextual Symbology**: Surfaces are marked with tool-specific 3D icons (Crosshair for Focus, Circular Target for Measure) to prevent parallax errors on touch devices.
+
+### 4.9 Real-Time Spatial Unit Transformation
+A state-driven conversion engine for spatial analysis:
+- **Metric-to-Imperial Transformation**: Real-time multiplication of raw Euclidean distances by $3.28084$ within the rendering loop.
+- **Dynamic Text Reflow**: Measurements are formatted and re-rendered instantly upon unit system state change without requiring re-computation of geometric endpoints.
+
 ## 5. Comprehensive Feature Suite
 -   **First Virtual GTO Trainer**: Specialized for strategic Game Theory visualization.
 -   **Hybrid Camera State Machine**: Seamlessly switches between Orbit, FPV, and TPV using a proprietary interpolation logic (`LERP` for target and position).
+-   **Context-Aware Mode Controller**: Automatically reverts the interaction state to "Orbit/View" mode upon successful focus-target acquisition, optimizing user workflow for inspection.
 -   **Multi-Layer Canvas**: Synchronized rendering of 2D screen-space and 3D mesh-space annotations.
 -   **Z-Fighting Mitigation Engine**: Dynamic `polygonOffsetFactor` and `polygonOffsetUnits` application for all virtual geometry.
 
@@ -63,6 +74,7 @@ To ensure a premium feel while masking background asset loading, the system uses
 3.  The use of BVH spatial indexing to accelerate interaction triggers in a pedagogical 3D trainer.
 4.  A tiered spatial rejection system for high-performance deletion of dynamic 3D geometry and measurement entities.
 5.  A synchronized transition management system for multi-modal application entry sequences.
+6.  A method for normal-aligned 3D visual feedback using GPU-retrieved vertex data for parallax-free interaction on touch-capacitive surfaces.
 
 ---
 *End of Technical Disclosure*

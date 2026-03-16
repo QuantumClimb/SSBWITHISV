@@ -9,7 +9,9 @@ A 3D annotation and training application for visualizing and annotating 3D model
   - 2D screen-space drawing (pencil, eraser)
   - **High-Performance 3D Surface Annotation**: Zero-lag drawing on complex meshes using **GPU-accelerated picking**.
   - **Surface-Aligned Brush Pointer**: Dynamic visual feedback that follows model curvature in real-time.
-  - **Precision Measuring Tool**: Real-time 3D distance measurement with snap-to-surface capability.
+  - **Precision Measuring Tool**: Real-time 3D distance measurement with snap-to-surface capability and **Meters/Feet toggle**.
+  - **3D Focus Tool**: Re-targets the camera to any clicked point on the model for precise inspection.
+  - **Custom 3D Reticles**: Visual feedback for Focus ('+' crosshair) and Measurement ('target') tools that align with surface normals.
   - **Object Placement Experiment**: Place and manipulate 3D cylinders, planks, and ropes for spatial markup.
   - Automatic surface-offset positioning with **Z-fighting prevention**.
 - **UX & Polish**:
@@ -35,6 +37,8 @@ A 3D annotation and training application for visualizing and annotating 3D model
 | **1 / 2 / 3** | Size presets |
 | **Double-click** | Centre & rotate camera on point |
 | **M** | Measure tool |
+| **F** | Focus tool |
+| **C** | Toggle Camera Mode (Orbit / Player) |
 
 ## Tech Stack
 
