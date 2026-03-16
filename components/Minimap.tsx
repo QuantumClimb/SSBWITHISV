@@ -30,7 +30,7 @@ const Minimap: React.FC<MinimapProps> = ({ targets, onFocus }) => {
   );
 
   return (
-    <div className="absolute top-4 right-6 z-50 flex flex-col items-end gap-2">
+    <div className="absolute bottom-4 right-6 z-50 flex flex-col-reverse items-end gap-2">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -48,7 +48,7 @@ const Minimap: React.FC<MinimapProps> = ({ targets, onFocus }) => {
       </button>
 
       {isOpen && (
-        <div className="bg-[#252526]/95 backdrop-blur-md border border-[#3c3c3c] p-3 rounded-md shadow-2xl flex flex-col gap-2 w-80 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="bg-[#252526]/95 backdrop-blur-md border border-[#3c3c3c] p-3 rounded-md shadow-2xl flex flex-col gap-2 w-80 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="text-[11px] uppercase tracking-[0.14em] text-[#9d9d9d] mb-1 px-1">Quick Navigation</div>
           
           {/* Row 1: GROUP OBSTACLES */}
