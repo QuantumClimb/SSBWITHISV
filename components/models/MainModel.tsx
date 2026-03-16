@@ -24,6 +24,7 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
   const sandTexture = useTexture('/Sand.jpg')
   const isvTexture = useTexture('/ISV.png')
   const topNewTexture = useTexture('/TOPNEW.jpg')
+  const gtoTexture = useTexture('/The GTO.jpg')
 
   // Configure textures
   React.useEffect(() => {
@@ -32,13 +33,27 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
       sandTexture.wrapS = sandTexture.wrapT = THREE.RepeatWrapping
       sandTexture.repeat.set(10, 10)
     }
+    if (gtoTexture) {
+      // Flip vertically: repeat.y = -1 and offset.y = 1
+      gtoTexture.repeat.y = -1
+      gtoTexture.offset.y = 1
+    }
     // Other textures (grass, rock, etc.) use their default or native mapping
-  }, [rockTexture, grassTexture, concreteTexture, sandTexture, isvTexture, topNewTexture])
+  }, [rockTexture, grassTexture, concreteTexture, sandTexture, isvTexture, topNewTexture, gtoTexture])
 
   // Traverse the scene graph to apply material overrides and calculate markers
   const { markers, minimapTargets } = React.useMemo(() => {
     const { scene, materials } = useGLTF('/FINAL_GROUND.glb') as unknown as GLTFResult
     const drySandMaterial = materials['Dry Sand']
+    const beachMaterial = materials['BEACH']
+
+    // 0. Global Material Configuration
+    if (beachMaterial && topNewTexture) {
+      beachMaterial.map = topNewTexture
+      // Rotate texture 180 degrees as requested
+      topNewTexture.center.set(0.5, 0.5)
+      topNewTexture.rotation = Math.PI
+    }
     
     const groups: Map<string, THREE.Box3> = new Map()
     const singulars: Map<string, THREE.Vector3> = new Map()
@@ -55,7 +70,7 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
         const stdMat = object.material as THREE.MeshStandardMaterial
         const matName = stdMat?.name?.toLowerCase() || ''
 
-        if (matName.includes('rock') || name.toLowerCase().includes('rock')) {
+        if (matName.includes('rock') || name.toLowerCase().includes('rock') || matName.includes('rock1') || matName.includes('rock2')) {
           const m = stdMat.clone()
           m.map = rockTexture
           m.name = 'ROCK_OVERRIDE'
@@ -96,9 +111,22 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
           object.material = m
         } else if (matName.includes('signage') || matName.includes('logo') || matName.includes('topic')) {
           const m = stdMat.clone()
-          m.map = isvTexture
-          m.name = 'ISV_OVERRIDE'
+          m.map = matName.includes('gtopic') ? gtoTexture : isvTexture
+          m.name = matName.includes('gtopic') ? 'GOTO_OVERRIDE' : 'ISV_OVERRIDE'
           object.material = m
+        } else if (name === 'GROUND' || matName.includes('beach')) {
+          if (beachMaterial) {
+            object.material = beachMaterial
+          } else {
+            const m = stdMat.clone()
+            m.map = topNewTexture
+            if (topNewTexture) {
+              topNewTexture.center.set(0.5, 0.5)
+              topNewTexture.rotation = Math.PI
+            }
+            m.name = 'BEACH_FALLBACK_OVERRIDE'
+            object.material = m
+          }
         } else if (name.includes('TOPNEW') || matName.includes('topnew')) {
           const m = stdMat.clone()
           m.map = topNewTexture
@@ -108,9 +136,9 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
       }
 
       // 2. Identify Target Groups/Singulars for Markers & Minimap
-      const isPGTIndex = name.match(/^PGT\d+/)
-      const isCTIndex = name.match(/^CT\d+/)
-      const isPGTNew = name === 'PGT_NEW_GRID'
+      const isPGTIndex = name.match(/^PGT(_GRID)?_?\d*/)
+      const isCTIndex = name.match(/^CT(_GRID)?_?\d*/)
+      const isPGTNew = name === 'PGT_NEW_GRID' || name === 'PGT_GROUND'
       const isHGTZone = name === 'HGT_ZONE'
       
       if (isPGTIndex || isCTIndex || isPGTNew || isHGTZone) {
