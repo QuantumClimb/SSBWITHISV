@@ -15,11 +15,11 @@ type GLTFResult = GLTF & {
   materials: {
     Material: THREE.MeshStandardMaterial
   }
-  animations: GLTFAction[]
+  animations: any[]
 }
 
-export function Model(props: JSX.IntrinsicElements['group']) {
-  const { nodes, materials } = useGLTF('/../I DRIVE/SSBWISV/public/MAN.glb') as GLTFResult
+export function Model(props: any) {
+  const { nodes, materials } = useGLTF('/MAN.glb') as unknown as GLTFResult
   return (
     <group {...props} dispose={null}>
       <mesh geometry={nodes.Male_Human.geometry} material={materials.Material} />
@@ -27,4 +27,4 @@ export function Model(props: JSX.IntrinsicElements['group']) {
   )
 }
 
-useGLTF.preload('/../I DRIVE/SSBWISV/public/MAN.glb')
+useGLTF.preload('/MAN.glb')

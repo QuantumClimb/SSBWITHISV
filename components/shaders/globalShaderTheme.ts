@@ -22,6 +22,11 @@ export type ShaderTheme = {
   sun: {
     color: string;
   };
+  measurement: {
+    tempLine: string;
+    savedLine: string;
+    text: string;
+  };
 };
 
 export const shaderTheme: ShaderTheme = {
@@ -43,6 +48,11 @@ export const shaderTheme: ShaderTheme = {
   },
   sun: {
     color: '#ffffff',
+  },
+  measurement: {
+    tempLine: '#00e5ff',
+    savedLine: '#ffffff',
+    text: '#00e5ff',
   },
 };
 

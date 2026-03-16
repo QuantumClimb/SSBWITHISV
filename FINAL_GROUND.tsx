@@ -835,7 +835,7 @@ type GLTFResult = GLTF & {
 }
 
 export function Model(props: JSX.IntrinsicElements['group']) {
-  const { nodes, materials } = useGLTF('/../I DRIVE/SSBWISV/public/FINAL_GROUND.glb') as GLTFResult
+  const { nodes, materials } = useGLTF('/FINAL_GROUND.glb') as GLTFResult
   return (
     <group {...props} dispose={null}>
       <group position={[60.123, 0.59, -26.76]} rotation={[Math.PI, 0, Math.PI]}>
@@ -1784,4 +1784,4 @@ export function Model(props: JSX.IntrinsicElements['group']) {
   )
 }
 
-useGLTF.preload('/../I DRIVE/SSBWISV/public/FINAL_GROUND.glb')
+useGLTF.preload('/FINAL_GROUND.glb')

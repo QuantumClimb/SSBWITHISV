@@ -6,12 +6,12 @@ import Toolbar from './components/Toolbar';
 import Login from './components/Login';
 import SplashScreen from './components/SplashScreen';
 import { useProgress } from '@react-three/drei';
-import { Path, Path3D, ToolMode, CameraMode, Measurement } from './types';
+import { Path, Path3D, ToolMode, CameraMode, Measurement, PlacedObject, ObjectType, UnitSystem } from './types';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
-  const { progress, active } = useProgress();
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial');
   const [tool, setTool] = useState<ToolMode>('view');
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [showSceneControls, setShowSceneControls] = useState(false);
@@ -21,6 +21,8 @@ const App: React.FC = () => {
   const [paths, setPaths] = useState<Path[]>([]);
   const [paths3D, setPaths3D] = useState<Path3D[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
+  const [selectedObjectType, setSelectedObjectType] = useState<ObjectType>('cylinder');
 
   const is2DDrawingMode = tool === 'pencil' || tool === 'eraser';
   const is3DDrawingMode = tool === 'pencil3d' || tool === 'eraser3d';
@@ -33,6 +35,7 @@ const App: React.FC = () => {
     setPaths([]);
     setPaths3D([]);
     setMeasurements([]);
+    setPlacedObjects([]);
   }, []);
 
   const addPath = useCallback((newPath: Path) => {
@@ -59,6 +62,14 @@ const App: React.FC = () => {
     setMeasurements((prev) => prev.filter(m => m.id !== id));
   }, []);
 
+  const addPlacedObject = useCallback((obj: PlacedObject) => {
+    setPlacedObjects((prev) => [...prev, obj]);
+  }, []);
+
+  const removePlacedObject = useCallback((id: string) => {
+    setPlacedObjects((prev) => prev.filter(obj => obj.id !== id));
+  }, []);
+
   const handleLoginSuccess = useCallback(() => {
     setIsAuthenticated(true);
   }, []);
@@ -78,18 +89,25 @@ const App: React.FC = () => {
         isDrawingMode={is3DDrawingMode}
         activeTool={tool}
         paths3D={paths3D}
-        onAddPath3D={addPath3D}
-        onRemovePath3D={removePath3D}
+        onAddPath3D={(p) => setPaths3D([...paths3D, p])}
+        onRemovePath3D={(id) => setPaths3D(paths3D.filter(p => p.id !== id))}
         currentColor={color}
         pencilWidth={pencilWidth}
         eraserWidth={eraserWidth}
         cameraMode={cameraMode}
-        onClear={clearAnnotations}
+        onClear={() => { setPaths3D([]); setMeasurements([]); setPlacedObjects([]); }}
         showSceneControls={showSceneControls}
         setShowSceneControls={setShowSceneControls}
         measurements={measurements}
-        onAddMeasurement={addMeasurement}
-        onRemoveMeasurement={removeMeasurement}
+        onAddMeasurement={(m) => setMeasurements([...measurements, m])}
+        onRemoveMeasurement={(id) => setMeasurements(measurements.filter(m => m.id !== id))}
+        placedObjects={placedObjects}
+        onAddPlacedObject={(o) => setPlacedObjects([...placedObjects, o])}
+        onRemovePlacedObject={(id) => setPlacedObjects(placedObjects.filter(o => o.id !== id))}
+        selectedObjectType={selectedObjectType}
+        unitSystem={unitSystem}
+        setUnitSystem={setUnitSystem}
+        onToolChange={selectTool}
       />
 
       {/* 2D Annotation Overlay Layer */}
@@ -121,6 +139,8 @@ const App: React.FC = () => {
           onCameraModeChange={(mode) => setCameraMode(mode)}
           showSceneControls={showSceneControls}
           onToggleSceneControls={() => setShowSceneControls(!showSceneControls)}
+          selectedObjectType={selectedObjectType}
+          onSelectedObjectTypeChange={setSelectedObjectType}
         />
       )}
 

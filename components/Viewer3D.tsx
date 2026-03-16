@@ -7,7 +7,7 @@ import { Wrench, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucid
 import * as THREE from 'three';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import simplify from 'simplify-js';
-import { Path3D, ToolMode, CameraMode, Measurement } from '../types';
+import { Path3D, ToolMode, CameraMode, Measurement, PlacedObject, ObjectType, UnitSystem } from '../types';
 import { MainModel, Man } from './models';
 import Minimap from './Minimap';
 import { shaderTheme } from './shaders/globalShaderTheme';
@@ -32,6 +32,13 @@ interface Viewer3DProps {
   measurements: Measurement[];
   onAddMeasurement: (m: Measurement) => void;
   onRemoveMeasurement: (id: string) => void;
+  placedObjects: PlacedObject[];
+  onAddPlacedObject: (obj: PlacedObject) => void;
+  onRemovePlacedObject: (id: string) => void;
+  selectedObjectType: ObjectType;
+  unitSystem: UnitSystem;
+  setUnitSystem: (u: UnitSystem) => void;
+  onToolChange: (tool: ToolMode) => void;
 }
 
 type AxisIndex = 0 | 1 | 2;
@@ -192,6 +199,104 @@ function computePathBounds(path: Path3D): PathBounds {
 
 
 
+
+const Plank = ({ start, end, color }: { start: THREE.Vector3, end: THREE.Vector3, color: string }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+  const distance = start.distanceTo(end);
+  const direction = new THREE.Vector3().subVectors(end, start).normalize();
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+
+  return (
+    <mesh position={midPoint} quaternion={quaternion} ref={meshRef}>
+      <boxGeometry args={[1, distance, 0.2]} />
+      <meshStandardMaterial color={color} />
+    </mesh>
+  );
+};
+
+const CursorReticle = ({ position, normal, color, type }: { position: THREE.Vector3, normal: THREE.Vector3, color: string, type: 'focus' | 'measure' }) => {
+  const meshRef = useRef<THREE.Group>(null);
+  
+  // Align with surface normal
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+
+  return (
+    <group position={position} quaternion={quaternion} ref={meshRef}>
+      {type === 'focus' ? (
+        // Crosshair for Focus
+        <group>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.4, 0.45, 32]} />
+            <meshBasicMaterial color={color} transparent opacity={0.6} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <boxGeometry args={[1.2, 0.05, 0.05]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+            <boxGeometry args={[1.2, 0.05, 0.05]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+        </group>
+      ) : (
+        // Target for Measurement
+        <group>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.2, 0.25, 32]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.5, 0.55, 32]} />
+            <meshBasicMaterial color={color} transparent opacity={0.4} />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+};
+
+const PlacementRenderer = ({ objects }: { objects: PlacedObject[] }) => {
+  return (
+    <group>
+      {objects.map((obj) => {
+        const pos = new THREE.Vector3(obj.position.x, obj.position.y, obj.position.z);
+        const rot = new THREE.Euler(obj.rotation.x, obj.rotation.y, obj.rotation.z);
+        const scale = new THREE.Vector3(obj.scale.x, obj.scale.y, obj.scale.z);
+
+        if (obj.type === 'cylinder') {
+          return (
+            <mesh key={obj.id} position={pos} rotation={rot} scale={scale}>
+              <cylinderGeometry args={[0.5, 0.5, 2, 32]} />
+              <meshStandardMaterial color={obj.color} />
+            </mesh>
+          );
+        }
+
+        if (obj.type === 'plank' && obj.points && obj.points.length >= 2) {
+          const start = new THREE.Vector3(obj.points[0].x, obj.points[0].y, obj.points[0].z);
+          const end = new THREE.Vector3(obj.points[1].x, obj.points[1].y, obj.points[1].z);
+          return <Plank key={obj.id} start={start} end={end} color={obj.color} />;
+        }
+
+        if (obj.type === 'rope' && obj.points && obj.points.length >= 2) {
+          const points = obj.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+          return (
+            <Line
+              key={obj.id}
+              points={points}
+              color={obj.color}
+              lineWidth={5}
+            />
+          );
+        }
+
+        return null;
+      })}
+    </group>
+  );
+};
+
 const ModelWithAnnotations = ({
   activeTool,
   onAddPath3D,
@@ -206,7 +311,18 @@ const ModelWithAnnotations = ({
   onTargetsUpdate,
   measurements,
   onAddMeasurement,
-  onRemoveMeasurement
+  onRemoveMeasurement,
+  placedObjects,
+  onAddPlacedObject,
+  onRemovePlacedObject,
+  selectedObjectType,
+  targetPosRef,
+  targetLookAtRef,
+  isAnimatingCamera,
+  controlsRef,
+  cameraRef,
+  unitSystem,
+  onToolChange,
 }: {
   activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
@@ -222,6 +338,17 @@ const ModelWithAnnotations = ({
   measurements: Measurement[];
   onAddMeasurement: (m: Measurement) => void;
   onRemoveMeasurement: (id: string) => void;
+  placedObjects: PlacedObject[];
+  onAddPlacedObject: (obj: PlacedObject) => void;
+  onRemovePlacedObject: (id: string) => void;
+  selectedObjectType: ObjectType;
+  targetPosRef: React.RefObject<THREE.Vector3 | null>;
+  targetLookAtRef: React.RefObject<THREE.Vector3 | null>;
+  isAnimatingCamera: React.RefObject<boolean>;
+  controlsRef: React.RefObject<any>;
+  cameraRef: React.RefObject<THREE.Camera | null>;
+  unitSystem: UnitSystem;
+  onToolChange: (tool: ToolMode) => void;
 }) => {
   const { gl, scene, camera, size: canvasSize } = useThree();
   const gpuPicker = useMemo(() => new GpuPicker(), []);
@@ -237,6 +364,10 @@ const ModelWithAnnotations = ({
 
   // Ref instead of state: zero React re-renders during drawing hot path
   const currentPointsRef = useRef<THREE.Vector3[]>([]);
+  
+  // Hover state for cursors/reticles
+  const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null);
+  const [hoverNormal, setHoverNormal] = useState<THREE.Vector3 | null>(null);
 
   // Lazy-initialize the live-line Three.js objects once
   const liveLineGeoRef = useRef<THREE.BufferGeometry>(new THREE.BufferGeometry());
@@ -264,6 +395,7 @@ const ModelWithAnnotations = ({
 
   // Measurement state
   const [tempMeasurement, setTempMeasurement] = useState<{ start: THREE.Vector3; end: THREE.Vector3 | null } | null>(null);
+  const [tempPlacement, setTempPlacement] = useState<THREE.Vector3[]>([]);
 
   // Precompute bounding spheres for all paths — only recalculated when paths change
   const boundsMap = useMemo(() => {
@@ -400,12 +532,44 @@ const ModelWithAnnotations = ({
   const eraseAt = useCallback((point: THREE.Vector3) => {
     const eraserRadius = eraserWidth / 40;
     const px = point.x, py = point.y, pz = point.z;
+    const eraserRadiusSq = eraserRadius * eraserRadius;
+
+    // 1. Erase Paths
     for (const path of paths3D) {
       if (checkPathIntersection(path, px, py, pz, eraserRadius)) {
         onRemovePath3D(path.id);
       }
     }
-  }, [paths3D, eraserWidth, checkPathIntersection, onRemovePath3D]);
+
+    // 2. Erase Measurements
+    for (const m of measurements) {
+      const start = new THREE.Vector3(m.start.x, m.start.y, m.start.z);
+      const end = new THREE.Vector3(m.end.x, m.end.y, m.end.z);
+      if (start.distanceToSquared(point) < eraserRadiusSq || end.distanceToSquared(point) < eraserRadiusSq) {
+        onRemoveMeasurement(m.id);
+      }
+    }
+
+    // 3. Erase Placed Objects
+    for (const obj of placedObjects) {
+      if (obj.points) {
+        // Multi-point objects (Plank, Rope)
+        for (const p of obj.points) {
+          const v = new THREE.Vector3(p.x, p.y, p.z);
+          if (v.distanceToSquared(point) < eraserRadiusSq) {
+            onRemovePlacedObject(obj.id);
+            break;
+          }
+        }
+      } else {
+        // Single point objects (Cylinder)
+        const v = new THREE.Vector3(obj.position.x, obj.position.y, obj.position.z);
+        if (v.distanceToSquared(point) < eraserRadiusSq) {
+          onRemovePlacedObject(obj.id);
+        }
+      }
+    }
+  }, [paths3D, measurements, placedObjects, eraserWidth, checkPathIntersection, onRemovePath3D, onRemoveMeasurement, onRemovePlacedObject]);
 
   const handlePointerDown = useCallback((e: any) => {
     if (activeTool === 'pencil3d' || activeTool === 'eraser3d') {
@@ -442,8 +606,62 @@ const ModelWithAnnotations = ({
           setTempMeasurement(null);
         }
       }
+    } else if (activeTool === 'place') {
+      e.stopPropagation();
+      const mouse = { x: e.pointer.x, y: e.pointer.y };
+      const surface = getSurfacePointGPU(mouse);
+      if (surface) {
+        if (selectedObjectType === 'plank' || selectedObjectType === 'rope') {
+          setTempPlacement(prev => [...prev, surface.point]);
+          if (tempPlacement.length === 1) { // Just placed the second point
+            const start = tempPlacement[0];
+            const end = surface.point;
+            onAddPlacedObject({
+              id: Math.random().toString(36).substring(2, 11),
+              type: selectedObjectType,
+              position: { x: 0, y: 0, z: 0 }, // Not used for plank/rope
+              rotation: { x: 0, y: 0, z: 0 }, // Not used for plank/rope
+              scale: { x: 1, y: 1, z: 1 }, // Not used for plank/rope
+              color: currentColor,
+              points: [
+                { x: start.x, y: start.y, z: start.z },
+                { x: end.x, y: end.y, z: end.z }
+              ]
+            });
+            setTempPlacement([]);
+          }
+        } else { // Single point placement for other objects
+          onAddPlacedObject({
+            id: Math.random().toString(36).substring(2, 11),
+            type: selectedObjectType,
+            position: { x: surface.point.x, y: surface.point.y, z: surface.point.z },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+            color: currentColor
+          });
+        }
+      }
+    } else if (activeTool === 'focus') {
+      e.stopPropagation();
+      const mouse = { x: e.pointer.x, y: e.pointer.y };
+      const surface = getSurfacePointGPU(mouse);
+      if (surface && cameraRef.current && controlsRef.current) {
+        // Set animation goals
+        targetLookAtRef.current = surface.point.clone();
+        
+        // Move camera to a comfortable viewing position relative to the new target
+        const currentPos = cameraRef.current.position.clone();
+        const direction = new THREE.Vector3().subVectors(currentPos, surface.point).normalize();
+        const distance = Math.max(20, currentPos.distanceTo(surface.point));
+        targetPosRef.current = surface.point.clone().add(direction.multiplyScalar(distance));
+        
+        isAnimatingCamera.current = true;
+
+        // Auto-switch back to view mode
+        onToolChange('view');
+      }
     }
-  }, [activeTool, getSurfacePointGPU, eraseAt, tempMeasurement, onAddMeasurement]);
+  }, [activeTool, getSurfacePointGPU, eraseAt, tempMeasurement, onAddMeasurement, selectedObjectType, tempPlacement, onAddPlacedObject, currentColor, cameraRef, controlsRef, targetLookAtRef, targetPosRef, isAnimatingCamera]);
 
   const handleDoubleClick = useCallback((e: any) => {
     if (activeTool !== 'view') return;
@@ -451,45 +669,70 @@ const ModelWithAnnotations = ({
   }, [activeTool]);
 
   const handlePointerMove = useCallback((e: any) => {
-    const now = performance.now();
     const mouse = { x: e.pointer.x, y: e.pointer.y };
 
-    if (now - lastHoverTimeRef.current > HOVER_THROTTLE_MS) {
+    if (activeTool === 'pencil3d' || activeTool === 'eraser3d') {
       const surface = getSurfacePointGPU(mouse);
+      
       if (surface) {
-        setHoverInfo(surface);
-      } else {
-        setHoverInfo(null);
-      }
-      lastHoverTimeRef.current = now;
-    }
+        if (brushRef.current) {
+          brushRef.current.position.copy(surface.point);
+          const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), surface.normal);
+          brushRef.current.quaternion.copy(quaternion);
+          brushRef.current.visible = true;
+        }
 
-    if (isDrawing3D.current) {
-      if (activeTool === 'pencil3d') {
-        const start = performance.now();
-        const surface = getSurfacePointRaycast(mouse);
-        const end = performance.now();
-        setRaycastLatency(end - start);
-        if (surface) {
-          const lastPoint = currentPointsRef.current.at(-1);
-          if (!lastPoint || surface.point.distanceTo(lastPoint) > 0.1) {
-            currentPointsRef.current.push(surface.point);
-            setActivePointCount(currentPointsRef.current.length);
+        if (isDrawing3D.current) {
+          if (activeTool === 'pencil3d') {
+            const startStr = performance.now();
+            const surfaceRay = getSurfacePointRaycast(mouse);
+            const endStr = performance.now();
+            setRaycastLatency(endStr - startStr);
+            if (surfaceRay) {
+              const lastPoint = currentPointsRef.current.at(-1);
+              if (!lastPoint || surfaceRay.point.distanceTo(lastPoint) > 0.1) {
+                currentPointsRef.current.push(surfaceRay.point);
+                setActivePointCount(currentPointsRef.current.length);
+              }
+            }
+          } else { // activeTool === 'eraser3d'
+            const surfaceRay = getSurfacePointRaycast(mouse);
+            if (surfaceRay) {
+              eraseAt(surfaceRay.point);
+            }
           }
         }
-      } else if (activeTool === 'eraser3d') {
-        const surface = getSurfacePointRaycast(mouse);
-        if (surface) {
-          eraseAt(surface.point);
-        }
+      } else if (brushRef.current) {
+        brushRef.current.visible = false;
       }
-    } else if (activeTool === 'measure' && tempMeasurement) {
+      setHoverPoint(null);
+    } else if (activeTool === 'focus' || activeTool === 'measure') {
+      const surface = getSurfacePointGPU(mouse);
+      if (surface) {
+        setHoverPoint(surface.point);
+        setHoverNormal(surface.normal);
+      } else {
+        setHoverPoint(null);
+      }
+      if (brushRef.current) brushRef.current.visible = false;
+    } else {
+      setHoverPoint(null);
+      if (brushRef.current) brushRef.current.visible = false;
+    }
+
+    if (activeTool === 'measure' && tempMeasurement) {
       const surface = getSurfacePointRaycast(mouse);
       if (surface) {
         setTempMeasurement(prev => prev ? { ...prev, end: surface.point } : null);
       }
+    } else if (activeTool === 'place' && tempPlacement.length === 1) {
+      // Update the second point of a temporary plank/rope
+      const surface = getSurfacePointRaycast(mouse);
+      if (surface) {
+        setTempPlacement([tempPlacement[0], surface.point]);
+      }
     }
-  }, [activeTool, getSurfacePointGPU, getSurfacePointRaycast, eraseAt, setActivePointCount, setRaycastLatency, tempMeasurement]);
+  }, [activeTool, getSurfacePointGPU, getSurfacePointRaycast, eraseAt, setActivePointCount, setRaycastLatency, tempMeasurement, tempPlacement]);
 
   const handlePointerUp = useCallback(() => {
     if (isDrawing3D.current) {
@@ -615,11 +858,44 @@ const ModelWithAnnotations = ({
       <group ref={annotationsRef}>
         <primitive object={liveLineObjRef.current} />
         <LineGroup paths3D={paths3D} />
+        {/* Render Placed Objects */}
+        <PlacementRenderer objects={placedObjects} />
+
+        {/* Render Temp Measurement Line */}
+        {tempMeasurement && tempMeasurement.end && (
+          <Line
+            points={[tempMeasurement.start, tempMeasurement.end]}
+            color={shaderTheme.measurement.tempLine}
+            lineWidth={2}
+            dashed
+          />
+        )}
+
+        {/* Render Temp Placement Line (for plank/rope) */}
+        {tempPlacement.length === 2 && (
+          <Line
+            points={tempPlacement}
+            color={currentColor}
+            lineWidth={2}
+            dashed
+          />
+        )}
         <MeasurementRenderer 
           measurements={measurements} 
           tempMeasurement={tempMeasurement}
           onRemove={onRemoveMeasurement}
+          unitSystem={unitSystem}
         />
+
+        {/* 3D Cursors / Reticles */}
+        {hoverPoint && hoverNormal && (activeTool === 'focus' || activeTool === 'measure') && (
+          <CursorReticle
+            position={hoverPoint}
+            normal={hoverNormal}
+            color={activeTool === 'focus' ? '#ffeb3b' : '#00e5ff'}
+            type={activeTool === 'focus' ? 'focus' : 'measure'}
+          />
+        )}
       </group>
     </>
   );
@@ -852,12 +1128,21 @@ const MovementKeypad = ({ onKeyChange }: { onKeyChange: (key: string, value: boo
 const MeasurementRenderer = ({ 
   measurements, 
   tempMeasurement, 
-  onRemove 
+  onRemove,
+  unitSystem
 }: { 
   measurements: Measurement[], 
   tempMeasurement: { start: THREE.Vector3; end: THREE.Vector3 | null } | null,
-  onRemove: (id: string) => void
+  onRemove: (id: string) => void,
+  unitSystem: UnitSystem
 }) => {
+  const formatDist = (m: number) => {
+    if (unitSystem === 'imperial') {
+      return `${(m * 3.28084).toFixed(2)}ft`;
+    }
+    return `${m.toFixed(2)}m`;
+  };
+
   return (
     <group>
       {/* Saved Measurements */}
@@ -877,7 +1162,7 @@ const MeasurementRenderer = ({
             (m.start.z + m.end.z) / 2
           ]}>
             <div className="bg-black/80 text-[#00e5ff] px-2 py-1 rounded-md text-[10px] font-bold border border-[#00e5ff]/30 whitespace-nowrap flex items-center gap-2 group">
-              {m.distance.toFixed(2)}m
+              {formatDist(m.distance)}
               <button 
                 onClick={(e) => { e.stopPropagation(); onRemove(m.id); }}
                 className="hover:text-red-500 transition-colors"
@@ -917,7 +1202,7 @@ const MeasurementRenderer = ({
             (tempMeasurement.start.z + tempMeasurement.end.z) / 2
           ]}>
             <div className="bg-black/60 text-[#00e5ff] px-2 py-1 rounded-md text-[10px] opacity-80 border border-[#00e5ff]/20 pointer-events-none">
-              {tempMeasurement.start.distanceTo(tempMeasurement.end).toFixed(2)}m
+              {formatDist(tempMeasurement.start.distanceTo(tempMeasurement.end))}
             </div>
           </Html>
           <Sphere position={[tempMeasurement.start.x, tempMeasurement.start.y, tempMeasurement.start.z]} args={[0.04, 16, 16]}>
@@ -925,6 +1210,7 @@ const MeasurementRenderer = ({
           </Sphere>
         </group>
       )}
+
     </group>
   );
 };
@@ -945,6 +1231,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   measurements,
   onAddMeasurement,
   onRemoveMeasurement,
+  placedObjects,
+  onAddPlacedObject,
+  onRemovePlacedObject,
+  selectedObjectType,
+  unitSystem,
+  setUnitSystem,
+  onToolChange,
 }) => {
   const [fps, setFps] = useState(0);
   const [activePointCount, setActivePointCount] = useState(0);
@@ -974,7 +1267,8 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   // Camera animation state
   const targetPosRef = useRef<THREE.Vector3 | null>(null);
   const targetLookAtRef = useRef<THREE.Vector3 | null>(null);
-  const isAnimatingCamera = useRef(false);
+  const isAnimatingCamera = useRef<boolean>(false);
+  const isInternalUpdateRef = useRef<boolean>(false);
 
   const focusOnTarget = useCallback((name: string) => {
     const posArr = minimapTargets[name];
@@ -1119,6 +1413,24 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 <span className="text-[11px] w-10 text-right">{fogDistance}</span>
               </div>
             )}
+          </div>
+
+          <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Units</div>
+            <div className="flex bg-black/20 p-1 rounded-lg gap-1">
+              <button
+                onClick={() => setUnitSystem('metric')}
+                className={`flex-1 py-1 rounded-md text-[10px] uppercase transition-all ${unitSystem === 'metric' ? 'bg-[#007acc] text-white shadow-lg' : 'text-[#888] hover:text-white'}`}
+              >
+                Meters
+              </button>
+              <button
+                onClick={() => setUnitSystem('imperial')}
+                className={`flex-1 py-1 rounded-md text-[10px] uppercase transition-all ${unitSystem === 'imperial' ? 'bg-[#007acc] text-white shadow-lg' : 'text-[#888] hover:text-white'}`}
+              >
+                Feet
+              </button>
+            </div>
           </div>
 
           <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
@@ -1308,6 +1620,17 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             measurements={measurements}
             onAddMeasurement={onAddMeasurement}
             onRemoveMeasurement={onRemoveMeasurement}
+            placedObjects={placedObjects}
+            onAddPlacedObject={onAddPlacedObject}
+            onRemovePlacedObject={onRemovePlacedObject}
+            selectedObjectType={selectedObjectType}
+            targetPosRef={targetPosRef}
+            targetLookAtRef={targetLookAtRef}
+            isAnimatingCamera={isAnimatingCamera}
+            controlsRef={controlsRef}
+            cameraRef={cameraRef}
+            unitSystem={unitSystem}
+            onToolChange={onToolChange}
           />
         </Suspense>
 
@@ -1335,7 +1658,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             maxPolarAngle={maxPolarAngle}
             enablePan={true}
             onChange={(e) => {
-              if (e?.target && !isAnimatingCamera.current && cameraRef.current) {
+              if (e?.target && !isAnimatingCamera.current && cameraRef.current && !isInternalUpdateRef.current) {
                 let changed = false;
                 
                 // 1. Prevent target from going under ground
@@ -1355,7 +1678,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 }
 
                 if (changed) {
+                  isInternalUpdateRef.current = true;
                   e.target.update();
+                  isInternalUpdateRef.current = false;
                 }
               }
             }}

@@ -1,7 +1,6 @@
-
 import React, { useEffect } from 'react';
-import { MousePointer2, Pencil, Trash2, Eraser, Box, User, Camera, Wrench, LayoutGrid, Circle, Ruler } from 'lucide-react';
-import { ToolMode, CameraMode } from '../types';
+import { MousePointer2, Pencil, Trash2, Eraser, Box, User, Camera, Wrench, LayoutGrid, Circle, Ruler, Crosshair } from 'lucide-react';
+import { ToolMode, CameraMode, ObjectType } from '../types';
 
 interface ToolbarProps {
   tool: ToolMode;
@@ -17,6 +16,8 @@ interface ToolbarProps {
   onCameraModeChange: (mode: CameraMode) => void;
   showSceneControls: boolean;
   onToggleSceneControls: () => void;
+  selectedObjectType: ObjectType;
+  onSelectedObjectTypeChange: (type: ObjectType) => void;
 }
 
 const COLORS = [
@@ -54,6 +55,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onCameraModeChange,
   showSceneControls,
   onToggleSceneControls,
+  selectedObjectType,
+  onSelectedObjectTypeChange,
 }) => {
   const is2DMode = tool === 'pencil' || tool === 'eraser';
   const isEraser = tool === 'eraser' || tool === 'eraser3d';
@@ -99,6 +102,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
           e.preventDefault();
           onSelectTool('measure');
           break;
+        case 'f':
+          e.preventDefault();
+          onSelectTool('focus');
+          break;
       }
     };
 
@@ -134,6 +141,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
       </button>
       <button onClick={() => onSelectTool('measure')} className={iconButtonClass(tool === 'measure')} title="Measure (M)">
         <Ruler size={18} />
+      </button>
+      <button onClick={() => onSelectTool('place')} className={iconButtonClass(tool === 'place')} title="Place Object">
+        <LayoutGrid size={18} />
+      </button>
+      <button onClick={() => onSelectTool('focus')} className={iconButtonClass(tool === 'focus')} title="Focus (F)">
+        <Crosshair size={18} />
       </button>
 
       <div className="h-px w-8 bg-[#3c3c3c]" />
@@ -181,6 +194,39 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 />
               </button>
             ))}
+          </div>
+        </>
+      )}
+
+      {tool === 'place' && (
+        <>
+          <div className="h-px w-8 bg-[#3c3c3c]" />
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => onSelectedObjectTypeChange('cylinder')}
+              className={iconButtonClass(selectedObjectType === 'cylinder')}
+              title="Cylinder"
+            >
+              <div className="w-4 h-6 border-2 border-current rounded-sm" />
+            </button>
+            <button
+              onClick={() => onSelectedObjectTypeChange('plank')}
+              className={iconButtonClass(selectedObjectType === 'plank')}
+              title="Plank"
+            >
+              <div className="w-6 h-2 border-2 border-current rounded-sm" />
+            </button>
+            <button
+              onClick={() => onSelectedObjectTypeChange('rope')}
+              className={iconButtonClass(selectedObjectType === 'rope')}
+              title="Rope"
+            >
+              <div className="w-6 h-6 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 20c4-4 8-12 12-16M8 20c4-4 8-12 12-16" />
+                </svg>
+              </div>
+            </button>
           </div>
         </>
       )}
