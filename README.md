@@ -11,8 +11,13 @@ A 3D annotation and training application for visualizing and annotating 3D model
   - **Surface-Aligned Brush Pointer**: Dynamic visual feedback that follows model curvature in real-time.
   - **Precision Measuring Tool**: Real-time 3D distance measurement with snap-to-surface capability and **Meters/Feet toggle**.
   - **3D Focus Tool**: Re-targets the camera to any clicked point on the model for precise inspection.
+- **Quick Navigation (Minimap)**: Advanced spatial grouping for tactical areas (HGT Hurdles, FGT, Individual Obstacles) with automatic focus centering.
+- **State-Persistent Camera System**: Seamless tool-switching between 3D annotation and view modes with zero camera resets or jitter.
   - **Custom 3D Reticles**: Visual feedback for Focus ('+' crosshair) and Measurement ('target') tools that align with surface normals.
   - **Object Placement Experiment**: Place and manipulate 3D cylinders, planks, and ropes for spatial markup.
+- **Branding & Assets**:
+  - **Premium VTX Branding**: Integrated logo and high-fidelity typography (Black Ops One, Kelson Sans).
+  - **Multi-Texture Support**: Dynamic mapping of custom textures (Rock, Grass, Concrete, Sand, Signboards).
   - Automatic surface-offset positioning with **Z-fighting prevention**.
 - **UX & Polish**:
   - **Premium Splash Screen**: High-fidelity welcome screen with real-time loading progress.

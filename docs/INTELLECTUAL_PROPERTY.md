@@ -61,6 +61,16 @@ A state-driven conversion engine for spatial analysis:
 - **Metric-to-Imperial Transformation**: Real-time multiplication of raw Euclidean distances by $3.28084$ within the rendering loop.
 - **Dynamic Text Reflow**: Measurements are formatted and re-rendered instantly upon unit system state change without requiring re-computation of geometric endpoints.
 
+### 4.10 Real-Time Spatial Target Grouping for Tactical Navigation
+The system implements an automated grouping algorithm for tactical sub-elements:
+- **Heuristic Pattern Matching**: Utilizes regex-based name parsing (e.g., `HGT\d+`, `S\d+`) to aggregate disparate meshes into logical tactical units.
+- **Collective Centroid Calculation**: Dynamically computes the global bounding box and center for grouped obstacles, enabling one-click camera orientation to high-interest zones.
+
+### 4.11 State-Persistent Tool-Augmented 3D Rendering Pipeline
+To ensure training continuity, the platform utilizes a persistence layer for camera state:
+- **Uncoupled Controller Lifecycle**: Unlike standard implementations that unmount controls during specialized tool usage, this system maintains mounted but interaction-disabled `OrbitControls`.
+- **Cross-Mode State Bridge**: Continuously synchronizes camera position and focus targets across Orbit, Third Person, and Focus modes to eliminate visual "jumps" during tool switching.
+
 ## 5. Comprehensive Feature Suite
 -   **First Virtual GTO Trainer**: Specialized for strategic Game Theory visualization.
 -   **Hybrid Camera State Machine**: Seamlessly switches between Orbit, FPV, and TPV using a proprietary interpolation logic (`LERP` for target and position).
@@ -75,6 +85,8 @@ A state-driven conversion engine for spatial analysis:
 4.  A tiered spatial rejection system for high-performance deletion of dynamic 3D geometry and measurement entities.
 5.  A synchronized transition management system for multi-modal application entry sequences.
 6.  A method for normal-aligned 3D visual feedback using GPU-retrieved vertex data for parallax-free interaction on touch-capacitive surfaces.
+7.  A method for aggregating 3D sub-elements into logical tactical groups using name-pattern heuristics for automated camera orientation.
+8.  A mechanism for maintaining camera state during tool-switching by decoupling interaction from mounting in a component-based 3D environment.
 
 ---
 *End of Technical Disclosure*
