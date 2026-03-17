@@ -1050,6 +1050,8 @@ const ThirdPersonController = ({
   
   const cameraOffset = new THREE.Vector3(0, 5, 12); 
   const lookAtOffset = new THREE.Vector3(0, 1, 0); 
+  const currentLookAt = useRef(new THREE.Vector3());
+  const isInitialFrame = useRef(true);
 
   // Initialize/Sync position on activation
   useEffect(() => {
@@ -1075,7 +1077,10 @@ const ThirdPersonController = ({
   }, [active, isPlayerSpawned]);
 
   useFrame((_state, _delta) => {
-    if (!active || !isPlayerSpawned || !avatarRef.current) return;
+    if (!active || !isPlayerSpawned || !avatarRef.current) {
+      isInitialFrame.current = true;
+      return;
+    }
     
     // Ensure camera up vector is clean for third person view
     _state.camera.up.set(0, 1, 0);
@@ -1103,15 +1108,26 @@ const ThirdPersonController = ({
 
     // 2. Update Camera Follow
     const idealOffset = cameraOffset.clone().applyQuaternion(avatar.quaternion).add(avatar.position);
-    const idealLookAt = lookAtOffset.clone().add(avatar.position);
+    const idealLookAt = lookAtOffset.clone();
+    idealLookAt.applyQuaternion(avatar.quaternion);
+    idealLookAt.add(avatar.position);
 
     // Persist position and actual target for other modes
     lastPosition.current.copy(avatar.position);
     lastTarget.current.copy(idealLookAt);
     lastRotation.current.copy(avatar.rotation);
 
-    camera.position.lerp(idealOffset, 0.1);
-    camera.lookAt(idealLookAt);
+    // Smoothly fly towards the ideal position and look-at target
+    const alpha = 1 - Math.exp(-4.0 * _delta); // Frame-rate independent smoothing
+    
+    if (isInitialFrame.current) {
+      currentLookAt.current.copy(lastTarget.current);
+      isInitialFrame.current = false;
+    }
+
+    camera.position.lerp(idealOffset, alpha);
+    currentLookAt.current.lerp(idealLookAt, alpha);
+    camera.lookAt(currentLookAt.current);
   });
 
   return active && isPlayerSpawned ? (
