@@ -972,7 +972,7 @@ interface CameraFocusManagerProps {
 const CameraFocusManager = ({ isAnimating, targetPos, targetLookAt, controlsRef }: CameraFocusManagerProps) => {
   useFrame((state, delta) => {
     if (isAnimating.current && targetPos.current && targetLookAt.current && controlsRef.current) {
-      const lerpFactor = 10 * delta; // Increased speed from 5
+      const lerpFactor = 5 * delta; // Reduced from 10 for smoother, slower transition
       
       // Smoothly move camera and control target
       state.camera.position.lerp(targetPos.current, lerpFactor);
