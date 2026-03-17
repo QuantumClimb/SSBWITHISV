@@ -1852,13 +1852,14 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           maxDistance={maxOrbitDistance}
           maxPolarAngle={maxPolarAngle}
           enablePan={true}
-          onChange={(e) => {
-            if (e?.target && !isAnimatingCamera.current && cameraRef.current && !isInternalUpdateRef.current && (cameraMode === 'orbit' || (cameraMode === 'thirdperson' && !isPlayerSpawned))) {
+          onChange={() => {
+            const controls = controlsRef.current;
+            if (controls && !isAnimatingCamera.current && cameraRef.current && !isInternalUpdateRef.current && (cameraMode === 'orbit' || (cameraMode === 'thirdperson' && !isPlayerSpawned))) {
               let changed = false;
               
               // 1. Prevent target from going under ground
-              if (e.target.target.y < 0) {
-                e.target.target.y = 0;
+              if (controls.target && controls.target.y < 0) {
+                controls.target.y = 0;
                 changed = true;
               }
 
@@ -1867,23 +1868,31 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               if (cameraRef.current.position.y < minCamY) {
                 const diff = minCamY - cameraRef.current.position.y;
                 cameraRef.current.position.y = minCamY;
-                e.target.target.y += diff;
+                if (controls.target) {
+                  controls.target.y += diff;
+                }
                 changed = true;
               }
 
               if (changed) {
                 isInternalUpdateRef.current = true;
-                e.target.update();
+                controls.update();
                 isInternalUpdateRef.current = false;
               }
 
               // Sync refs for transitions
-              lastPlayerTarget.current.copy(e.target.target);
-              lastPlayerPosition.current.copy(cameraRef.current.position);
+              if (lastPlayerTarget.current && controls.target) {
+                lastPlayerTarget.current.copy(controls.target);
+              }
+              if (lastPlayerPosition.current) {
+                lastPlayerPosition.current.copy(cameraRef.current.position);
+              }
               
-              const forward = new THREE.Vector3();
-              cameraRef.current.getWorldDirection(forward);
-              lastPlayerRotation.current.y = Math.atan2(forward.x, forward.z);
+              if (lastPlayerRotation.current) {
+                const forward = new THREE.Vector3();
+                cameraRef.current.getWorldDirection(forward);
+                lastPlayerRotation.current.y = Math.atan2(forward.x, forward.z);
+              }
             }
           }}
         />
