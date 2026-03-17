@@ -1336,7 +1336,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const cameraRef = useRef<THREE.Camera>(null);
   const [orbitTarget, setOrbitTarget] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const [directionalIntensity, setDirectionalIntensity] = useState(3.5);
-  const [ambientIntensity, setAmbientIntensity] = useState(0.8);
+  const [ambientIntensity, setAmbientIntensity] = useState(0.5);
   const [skyRotation, setSkyRotation] = useState<[number, number, number]>([0, 0, 0.0]);
   const [skyScale, setSkyScale] = useState(220);
   const [fogEnabled, setFogEnabled] = useState(true);
@@ -1351,7 +1351,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [shadowBias, setShadowBias] = useState(-0.0005);
   const [contactShadowOpacity, setContactShadowOpacity] = useState(0.5);
   const [contactShadowBlur, setContactShadowBlur] = useState(2.5);
-  const [contactShadowScale, setContactShadowScale] = useState(150);
+  const [contactShadowScale, setContactShadowScale] = useState(255);
   const [contactShadowFar, setContactShadowFar] = useState(10);
   
   // Persistent Player State
