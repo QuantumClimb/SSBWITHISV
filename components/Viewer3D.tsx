@@ -1689,7 +1689,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           <Smaa />
         </EffectComposer>
 
-        {!isDrawingMode && cameraMode === 'orbit' && (
+        {cameraMode === 'orbit' && (
           <OrbitControls
             ref={controlsRef}
             enabled={activeTool === 'view'}
@@ -1731,6 +1731,10 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                   e.target.update();
                   isInternalUpdateRef.current = false;
                 }
+
+                // Always sync the refs so other modes (like Third Person or re-enabling) stay correct
+                lastPlayerTarget.current.copy(e.target.target);
+                lastPlayerPosition.current.copy(cameraRef.current.position);
               }
             }}
           />
