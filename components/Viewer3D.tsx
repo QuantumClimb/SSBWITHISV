@@ -1076,6 +1076,9 @@ const ThirdPersonController = ({
 
   useFrame((_state, _delta) => {
     if (!active || !isPlayerSpawned || !avatarRef.current) return;
+    
+    // Ensure camera up vector is clean for third person view
+    _state.camera.up.set(0, 1, 0);
 
     const avatar = avatarRef.current;
     
@@ -1736,64 +1739,53 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           <Smaa />
         </EffectComposer>
 
-        {cameraMode === 'orbit' && (
-          <OrbitControls
-            ref={controlsRef}
-            enabled={activeTool === 'view'}
-            makeDefault
-            target={lastPlayerTarget.current}
-            enableDamping
-            dampingFactor={0.08}
-            rotateSpeed={1}
-            zoomSpeed={1}
-            autoRotate={false}
-            autoRotateSpeed={2}
-            minDistance={5}
-            maxDistance={maxOrbitDistance}
-            minPolarAngle={0}
-            maxPolarAngle={maxPolarAngle}
-            enablePan={true}
-            onChange={(e) => {
-              if (e?.target && !isAnimatingCamera.current && cameraRef.current && !isInternalUpdateRef.current) {
-                let changed = false;
-                
-                // 1. Prevent target from going under ground
-                if (e.target.target.y < 0) {
-                  e.target.target.y = 0;
-                  changed = true;
-                }
-
-                // 2. Prevent camera itself from going under ground (min height 1.0)
-                const minCamY = 1.0;
-                if (cameraRef.current.position.y < minCamY) {
-                  const diff = minCamY - cameraRef.current.position.y;
-                  cameraRef.current.position.y = minCamY;
-                  // Move the target up by the same amount to preserve the angle
-                  e.target.target.y += diff;
-                  changed = true;
-                }
-
-                if (changed) {
-                  isInternalUpdateRef.current = true;
-                  e.target.update();
-                  isInternalUpdateRef.current = false;
-                }
-
-                // Always sync the refs so other modes (like Third Person or re-enabling) stay correct
-                lastPlayerTarget.current.copy(e.target.target);
-                
-                // Character should spawn at the CAMERA'S ground projection for most intuitive feel
-                lastPlayerPosition.current.set(cameraRef.current.position.x, 0, cameraRef.current.position.z);
-
-                // Character should face the same direction the camera is looking
-                const forward = new THREE.Vector3();
-                cameraRef.current.getWorldDirection(forward);
-                // atan2(x, z) gives the angle from the Z axis
-                lastPlayerRotation.current.y = Math.atan2(forward.x, forward.z);
+        <OrbitControls
+          ref={controlsRef}
+          makeDefault
+          enabled={!isDrawingMode && activeTool === 'view' && (cameraMode === 'orbit' || (cameraMode === 'thirdperson' && !isPlayerSpawned))}
+          enableDamping
+          dampingFactor={0.08}
+          rotateSpeed={1}
+          zoomSpeed={1}
+          minDistance={5}
+          maxDistance={maxOrbitDistance}
+          maxPolarAngle={maxPolarAngle}
+          enablePan={true}
+          onChange={(e) => {
+            if (e?.target && !isAnimatingCamera.current && cameraRef.current && !isInternalUpdateRef.current && (cameraMode === 'orbit' || (cameraMode === 'thirdperson' && !isPlayerSpawned))) {
+              let changed = false;
+              
+              // 1. Prevent target from going under ground
+              if (e.target.target.y < 0) {
+                e.target.target.y = 0;
+                changed = true;
               }
-            }}
-          />
-        )}
+
+              // 2. Prevent camera itself from going under ground (min height 1.0)
+              const minCamY = 1.0;
+              if (cameraRef.current.position.y < minCamY) {
+                const diff = minCamY - cameraRef.current.position.y;
+                cameraRef.current.position.y = minCamY;
+                e.target.target.y += diff;
+                changed = true;
+              }
+
+              if (changed) {
+                isInternalUpdateRef.current = true;
+                e.target.update();
+                isInternalUpdateRef.current = false;
+              }
+
+              // Sync refs for transitions
+              lastPlayerTarget.current.copy(e.target.target);
+              lastPlayerPosition.current.copy(cameraRef.current.position);
+              
+              const forward = new THREE.Vector3();
+              cameraRef.current.getWorldDirection(forward);
+              lastPlayerRotation.current.y = Math.atan2(forward.x, forward.z);
+            }
+          }}
+        />
       </Canvas>
 
     </div>
