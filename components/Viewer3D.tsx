@@ -1734,7 +1734,19 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
                 // Always sync the refs so other modes (like Third Person or re-enabling) stay correct
                 lastPlayerTarget.current.copy(e.target.target);
-                lastPlayerPosition.current.copy(cameraRef.current.position);
+                
+                // Character should spawn at the ground target, not the camera eye position
+                lastPlayerPosition.current.copy(e.target.target);
+
+                // Calculate horizontal rotation so player faces away from camera
+                const dir = new THREE.Vector3().subVectors(e.target.target, cameraRef.current.position);
+                dir.y = 0;
+                if (dir.lengthSq() > 0.1) {
+                  dir.normalize();
+                  // atan2(x, z) gives the angle from the Z axis
+                  // We use this to set the Y-axis rotation of the character
+                  lastPlayerRotation.current.y = Math.atan2(dir.x, dir.z);
+                }
               }
             }}
           />
