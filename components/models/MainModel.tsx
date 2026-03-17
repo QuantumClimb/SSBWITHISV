@@ -175,8 +175,8 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
       else if (name === 'GROUP_GRASS' || name.includes('L_GRID')) prefix = 'L_GRID'
 
       let miniPrefix = ''
-      if (name.startsWith('HGT_ZONE') || name.startsWith('HGT_GROUND') || name.startsWith('HGT_PLACE') || name.match(/^HGT\d+/)) miniPrefix = 'HGT'
-      else if (name.startsWith('FGT_PLACE') || name.startsWith('FGT_GROUND') || name.match(/^FGT\d+/) || name === 'FINAL_GROUND') miniPrefix = 'FGT'
+      if (name.match(/^HGT\d+/)) miniPrefix = 'HGT'
+      else if (name.match(/^FGT\d+/)) miniPrefix = 'FGT'
       else if (name.match(/^S\d+/)) miniPrefix = 'INDIVIDUAL OBSTACLES'
       else if (name.includes('GROUP_OBSTACLES') || name.includes('GROUP_OBSTACLE')) miniPrefix = 'GROUP OBSTACLE RACE'
 
