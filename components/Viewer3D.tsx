@@ -1072,7 +1072,7 @@ const ThirdPersonController = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [active]);
+  }, [active, isPlayerSpawned]);
 
   useFrame((_state, _delta) => {
     if (!active || !isPlayerSpawned || !avatarRef.current) return;
