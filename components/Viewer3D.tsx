@@ -1,7 +1,7 @@
 
 import React, { Suspense, useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Html, Line, Sphere, AccumulativeShadows, RandomizedLight, useTexture, Center } from '@react-three/drei';
+import { OrbitControls, Environment, Html, Line, Sphere, AccumulativeShadows, RandomizedLight, useTexture, Center, ContactShadows } from '@react-three/drei';
 import { EffectComposer, SMAA as Smaa } from '@react-three/postprocessing';
 import { Wrench, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as THREE from 'three';
@@ -1347,6 +1347,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [cameraFov, setCameraFov] = useState(50);
   const [minimapTargets, setMinimapTargets] = useState<Record<string, [number, number, number]>>({});
   
+  // Shadow Settings
+  const [shadowBias, setShadowBias] = useState(-0.0005);
+  const [contactShadowOpacity, setContactShadowOpacity] = useState(0.5);
+  const [contactShadowBlur, setContactShadowBlur] = useState(2.5);
+  const [contactShadowScale, setContactShadowScale] = useState(150);
+  const [contactShadowFar, setContactShadowFar] = useState(10);
+  
   // Persistent Player State
   const lastPlayerPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const lastPlayerTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 1, 0));
@@ -1565,6 +1572,75 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           </div>
 
           <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Shadow Settings</div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">Dir Bias</span>
+              <input
+                type="range"
+                min="-0.01"
+                max="0.01"
+                step="0.0001"
+                value={shadowBias}
+                onChange={(e) => setShadowBias(Number.parseFloat(e.target.value))}
+                className="flex-1 accent-[#968142]"
+              />
+              <span className="text-[11px] w-12 text-right">{shadowBias.toFixed(4)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">C. Opacity</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={contactShadowOpacity}
+                onChange={(e) => setContactShadowOpacity(Number.parseFloat(e.target.value))}
+                className="flex-1 accent-[#968142]"
+              />
+              <span className="text-[11px] w-12 text-right">{contactShadowOpacity.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">C. Blur</span>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.1"
+                value={contactShadowBlur}
+                onChange={(e) => setContactShadowBlur(Number.parseFloat(e.target.value))}
+                className="flex-1 accent-[#968142]"
+              />
+              <span className="text-[11px] w-12 text-right">{contactShadowBlur.toFixed(1)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">C. Scale</span>
+              <input
+                type="range"
+                min="10"
+                max="300"
+                step="5"
+                value={contactShadowScale}
+                onChange={(e) => setContactShadowScale(Number.parseFloat(e.target.value))}
+                className="flex-1 accent-[#968142]"
+              />
+              <span className="text-[11px] w-12 text-right">{contactShadowScale}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] w-16 text-[#9d9d9d]">C. Far</span>
+              <input
+                type="range"
+                min="0.1"
+                max="50"
+                step="0.1"
+                value={contactShadowFar}
+                onChange={(e) => setContactShadowFar(Number.parseFloat(e.target.value))}
+                className="flex-1 accent-[#968142]"
+              />
+              <span className="text-[11px] w-12 text-right">{contactShadowFar.toFixed(1)}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-[#3c3c3c] pt-2">
             <div className="text-[10px] uppercase tracking-[0.12em] text-[#9d9d9d]">Camera Axis</div>
             <div className="grid grid-cols-3 gap-2">
               {(['X', 'Y', 'Z'] as const).map((axis) => (
@@ -1690,9 +1766,18 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           shadow-camera-right={150}
           shadow-camera-top={150}
           shadow-camera-bottom={-150}
-          shadow-bias={-0.0005}
+          shadow-bias={shadowBias}
         />
         {/* eslint-enable react/no-unknown-property */}
+
+        <ContactShadows 
+          opacity={contactShadowOpacity} 
+          scale={contactShadowScale} 
+          blur={contactShadowBlur} 
+          far={contactShadowFar} 
+          resolution={512} 
+          color="#000000"
+        />
 
 
         <Suspense fallback={null}>
