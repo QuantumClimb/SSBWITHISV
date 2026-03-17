@@ -22,7 +22,7 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
   const grassTexture = useTexture('/grass.jpg')
   const concreteTexture = useTexture('/concrete.jpg')
   const sandTexture = useTexture('/Sand.jpg')
-  const isvTexture = useTexture('/ISV.png')
+  const signboardTexture = useTexture('/signboard.jpg')
   const topNewTexture = useTexture('/TOPNEW.jpg')
   const gtoTexture = useTexture('/The GTO.jpg')
 
@@ -38,8 +38,12 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
       gtoTexture.repeat.y = -1
       gtoTexture.offset.y = 1
     }
+    if (signboardTexture) {
+      signboardTexture.repeat.y = -1
+      signboardTexture.offset.y = 1
+    }
     // Other textures (grass, rock, etc.) use their default or native mapping
-  }, [rockTexture, grassTexture, concreteTexture, sandTexture, isvTexture, topNewTexture, gtoTexture])
+  }, [rockTexture, grassTexture, concreteTexture, sandTexture, signboardTexture, topNewTexture, gtoTexture])
 
   // Traverse the scene graph to apply material overrides and calculate markers
   const { markers, minimapTargets } = React.useMemo(() => {
@@ -110,10 +114,23 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
           m.name = 'GRASS_GREEN_OVERRIDE'
           object.material = m
         } else if (matName.includes('signage') || matName.includes('logo') || matName.includes('topic')) {
-          const m = stdMat.clone()
-          m.map = matName.includes('gtopic') ? gtoTexture : isvTexture
-          m.name = matName.includes('gtopic') ? 'GOTO_OVERRIDE' : 'ISV_OVERRIDE'
-          object.material = m
+          const updateMat = (mat: any) => {
+            if (mat && (mat.name.toLowerCase().includes('signage') || mat.name.toLowerCase().includes('logo') || mat.name.toLowerCase().includes('topic'))) {
+              const m = mat.clone();
+              m.map = mat.name.toLowerCase().includes('gtopic') ? gtoTexture : signboardTexture;
+              if (m.map) m.map.flipY = true;
+              m.name = mat.name.toLowerCase().includes('gtopic') ? 'GOTO_OVERRIDE' : 'SIGNBOARD_OVERRIDE';
+              m.needsUpdate = true;
+              return m;
+            }
+            return mat;
+          };
+
+          if (Array.isArray(object.material)) {
+            object.material = object.material.map(updateMat);
+          } else {
+            object.material = updateMat(object.material);
+          }
         } else if (name === 'GROUND' || matName.includes('beach')) {
           if (beachMaterial) {
             object.material = beachMaterial
@@ -149,20 +166,19 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
           box.getCenter(pos)
         }
         singulars.set(`${name}_${object.uuid}`, pos)
-        return 
       }
 
       // 3. Parent-level aggregation
       let prefix = ''
-      if (name === 'CT_GRID') prefix = 'CT_GRID'
-      else if (name === 'CT_GRID_1' || name === 'PGT_GRID' || name.includes('PGT_NEW')) prefix = 'PGT_GRID'
+      if (name.startsWith('CT_GRID')) prefix = 'CT_GRID'
+      else if (name.startsWith('PGT_GRID') || name.startsWith('PGT_GROUND') || name.includes('PGT_NEW')) prefix = 'PGT_GRID'
       else if (name === 'GROUP_GRASS' || name.includes('L_GRID')) prefix = 'L_GRID'
 
       let miniPrefix = ''
-      if (name.match(/^HGT\d+/)) miniPrefix = 'HGT'
-      else if (name.match(/^FGT\d+/) || name === 'FINAL_GROUND') miniPrefix = 'FG'
+      if (name.startsWith('HGT_ZONE') || name.startsWith('HGT_GROUND') || name.startsWith('HGT_PLACE') || name.match(/^HGT\d+/)) miniPrefix = 'HGT'
+      else if (name.startsWith('FGT_PLACE') || name.startsWith('FGT_GROUND') || name.match(/^FGT\d+/) || name === 'FINAL_GROUND') miniPrefix = 'FGT'
       else if (name.match(/^S\d+/)) miniPrefix = 'INDIVIDUAL OBSTACLES'
-      else if (name.includes('GROUP_OBSTACLES') || name.includes('GROUP_OBSTACLE')) miniPrefix = 'GROUP OBSTACLES'
+      else if (name.includes('GROUP_OBSTACLES') || name.includes('GROUP_OBSTACLE')) miniPrefix = 'GROUP OBSTACLE RACE'
 
       const updateBox = (map: Map<string, THREE.Box3>, key: string) => {
         // Only aggregate meshes for accurate physical centers
@@ -201,7 +217,7 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
     })
 
     return { markers: finalMarkers, minimapTargets: targets }
-  }, [scene, rockTexture, grassTexture, concreteTexture, sandTexture, isvTexture, topNewTexture])
+  }, [scene, rockTexture, grassTexture, concreteTexture, sandTexture, signboardTexture, topNewTexture])
 
   React.useEffect(() => {
     if (onTargetsUpdate && Object.keys(minimapTargets).length > 0) {

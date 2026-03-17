@@ -16,7 +16,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (username === VALID_USERNAME && password === VALID_PASSWORD) {
       setError('');
       onLoginSuccess();
@@ -27,38 +26,48 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-[#1e1e1e] flex items-center justify-center">
-      <div className="w-full max-w-sm mx-4 border border-[#3c3c3c] bg-[#252526] shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
-        <div className="h-9 border-b border-[#3c3c3c] bg-[#2d2d30] px-4 flex items-center">
-          <span className="text-[11px] uppercase tracking-[0.14em] text-[#c5c5c5]">Authentication</span>
+    <div className="fixed inset-0 w-screen h-screen bg-black flex flex-col items-center justify-center">
+      <div className="w-full max-w-sm mx-4 space-y-8">
+        
+        {/* Branding Header */}
+        <div className="flex flex-col items-center gap-6 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
+          <img src="/ISV.png" alt="ISV Logo" className="h-[100px] w-auto object-contain" />
+          <div className="space-y-4 font-kelson">
+            <div className="flex items-center justify-center gap-4">
+              <h1 className="text-xl font-ops tracking-[0.05em] text-white uppercase whitespace-nowrap">
+                WELCOME TO
+              </h1>
+              <img src="/VTX_LOGO.png" alt="VTX" className="h-8 w-auto object-contain" />
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-tactical-gold text-[10px] font-bold tracking-[0.3em] uppercase">
+                Built to Prepare, Not Coach <sup className="font-ops text-[0.4em] ml-[-0.1em] align-top">TM</sup>
+              </p>
+              <p className="text-[#444] text-[8px] font-bold tracking-[0.4em] uppercase">Authentication Required</p>
+            </div>
+          </div>
         </div>
 
-        <div className="p-6">
-          <div className="mb-6">
-            <h1 className="text-lg font-semibold text-[#d4d4d4]">
-              <span className="text-blue-400">SSBWITHISV</span>
-            </h1>
-            <p className="mt-1 text-sm text-[#9d9d9d]">Sign in to continue</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">
+        {/* Login Card */}
+        <div className="bg-[#111] border border-white/5 p-8 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-700">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#666]">
                 Username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full h-10 px-3 bg-[#3c3c3c] border border-[#3c3c3c] text-sm text-[#cccccc] placeholder-[#8a8a8a] outline-none focus:border-[#007acc]"
-                placeholder="Enter username"
+                className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:border-[#968142] focus:bg-white/10 outline-none transition-all placeholder:text-white/20"
+                placeholder="Enter commander ID"
                 autoFocus
                 required
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#666]">
                 Password
               </label>
               <div className="relative">
@@ -66,34 +75,47 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-10 pl-3 pr-10 bg-[#3c3c3c] border border-[#3c3c3c] text-sm text-[#cccccc] placeholder-[#8a8a8a] outline-none focus:border-[#007acc]"
-                  placeholder="Enter password"
+                  className="w-full h-12 pl-4 pr-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:border-[#968142] focus:bg-white/10 outline-none transition-all placeholder:text-white/20"
+                  placeholder="Enter security key"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-[#9d9d9d] hover:text-[#d4d4d4]"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-[#666] hover:text-[#968142] transition-colors"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
             {error && (
-              <div className="border border-[#be1100] bg-[#5a1d1d]/60 px-3 py-2 text-sm text-[#f48771]">
+              <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400 animate-in fade-in slide-in-from-top-2">
                 {error}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full h-10 bg-[#0e639c] hover:bg-[#1177bb] text-sm font-medium text-white transition-colors"
+              className="w-full h-12 bg-tactical-gold text-black rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-tactical-brass hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(150,129,66,0.2)]"
             >
-              Sign In
+              Authorise
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* Footer Branding (Matching Splash) */}
+      <div className="absolute bottom-12 px-12 w-full flex justify-between items-end opacity-30 select-none">
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-[10px] text-white font-medium tracking-widest uppercase">
+            ©️SSB with ISV, CS Joint Services Academy Pvt Ltd,
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-1 text-right">
+          <span className="text-[10px] text-white font-medium tracking-widest uppercase">
+            All rights reserved, 2026.
+          </span>
         </div>
       </div>
     </div>

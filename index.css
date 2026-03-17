@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+@font-face {
+  font-family: 'Kelson Sans';
+  src: url('/Kelson Sans Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Kelson Sans';
+  src: url('/Kelson Sans Bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Kelson Sans';
+  src: url('/Kelson Sans Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Black Ops One';
+  src: url('/BlackOpsOne-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+:root {
+  --tactical-gold: #968142;
+  --tactical-bronze: #827855;
+  --tactical-olive: #7e7659;
+  --tactical-brass: #958041;
+}
+
+@theme {
+  --font-kelson: "Kelson Sans", sans-serif;
+  --font-ops: "Black Ops One", cursive;
+  --color-tactical-gold: var(--tactical-gold);
+  --color-tactical-bronze: var(--tactical-bronze);
+  --color-tactical-olive: var(--tactical-olive);
+  --color-tactical-brass: var(--tactical-brass);
+}

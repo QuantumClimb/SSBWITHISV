@@ -13,8 +13,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onStart }) => {
   const [effectiveProgress, setEffectiveProgress] = useState(0);
 
   useEffect(() => {
-    // Smoother progress animation over at least 2.5 seconds
-    const duration = 2500; // 2.5 seconds total
+    // Smoother progress animation over 1 second
+    const duration = 1000; // 1 second total
     const interval = 20; // 50fps
     const step = 100 / (duration / interval);
     
@@ -24,7 +24,6 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onStart }) => {
       if (current >= 100) {
         current = 100;
         clearInterval(timer);
-        // Only set ready if real assets are also loaded (progress from drie)
       }
       setEffectiveProgress(current);
     }, interval);
@@ -42,55 +41,60 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onStart }) => {
 
   const handleStart = () => {
     setIsFadingOut(true);
-    // 2.5s transition duration
-    setTimeout(onStart, 2500);
+    // 1.5s transition duration
+    setTimeout(onStart, 1500);
   };
 
   return (
-    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0b] transition-opacity duration-[2500ms] ease-in-out ${isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black font-kelson transition-opacity duration-[1500ms] ease-in-out ${isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
       
-      {/* Background Glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full"></div>
-      </div>
-
-      <div className="relative flex flex-col items-center gap-12 text-center">
+      <div className="relative flex flex-col items-center gap-12 text-center w-full max-w-2xl px-6">
         
-        {/* Title Section */}
-        <div className="space-y-4">
-          <h2 className="text-[#00e5ff] text-xs font-bold tracking-[0.4em] uppercase opacity-60">System Online</h2>
-          <h1 className="text-6xl font-black tracking-tighter text-white">
-            WELCOME TO <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-[#00e5ff]">VTX</span>
-          </h1>
+        {/* Branding Section */}
+        <div className="flex flex-col items-center gap-8">
+          {/* Logo Section */}
+          <div className="animate-in fade-in slide-in-from-top-4 duration-1000">
+            <img src="/ISV.png" alt="ISV Logo" className="h-[120px] w-auto object-contain" />
+          </div>
+
+          {/* Title and Tagline Section */}
+          <div className="flex flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+            <div className="flex items-center gap-6">
+              <h1 className="text-5xl font-ops tracking-[0.1em] text-white uppercase whitespace-nowrap">
+                WELCOME TO
+              </h1>
+              <img src="/VTX_LOGO.png" alt="VTX" className="h-[72px] w-auto object-contain" />
+            </div>
+            
+            <h2 className="text-tactical-gold text-lg font-bold tracking-[0.4em] uppercase">
+              Built to Prepare, Not Coach <sup className="font-ops text-[0.4em] ml-[-0.2em] align-top">TM</sup>
+            </h2>
+          </div>
         </div>
 
         {/* Loading / Action Section */}
-        <div className="h-24 flex items-center justify-center">
+        <div className="h-32 flex items-center justify-center">
           {!isReady ? (
             <div className="flex flex-col items-center gap-4">
-              <div className="w-64 h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
+              <div className="w-80 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
                 <div 
-                  className="h-full bg-gradient-to-r from-blue-600 to-[#00e5ff] transition-all duration-300 ease-out" 
+                  className="h-full bg-gradient-to-r from-tactical-gold to-tactical-brass transition-all duration-300 ease-out shadow-[0_0_15px_rgba(150,129,66,0.5)]" 
                   style={{ width: `${effectiveProgress}%` }}
                 ></div>
               </div>
-              <p className="text-[#999] text-[10px] font-medium tracking-widest uppercase animate-pulse">
+              <p className="text-tactical-bronze text-[11px] font-bold tracking-[0.4em] uppercase animate-pulse">
                 INITIALISING {Math.round(effectiveProgress)}%
               </p>
             </div>
           ) : (
-            <div className="relative group p-12 animate-in fade-in zoom-in duration-500">
-              {/* Solid color background at 50% opacity */}
-              <div className="absolute inset-0 bg-black/50 rounded-2xl backdrop-blur-sm -z-10 transition-transform duration-500 group-hover:scale-105 border border-white/5"></div>
-              
+            <div className="animate-in fade-in zoom-in duration-700">
               <button
                 onClick={handleStart}
-                className="flex flex-col items-center gap-4"
+                className="flex flex-col items-center transition-transform duration-300 hover:scale-110 active:scale-95"
               >
-                <div className="w-20 h-20 flex items-center justify-center rounded-full bg-white text-black transition-transform duration-300 group-hover:scale-110 group-active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.3)]">
+                <div className="w-20 h-20 flex items-center justify-center rounded-full bg-tactical-gold text-black shadow-[0_0_50px_rgba(150,129,66,0.3)] hover:bg-tactical-brass transition-colors">
                   <Play fill="currentColor" size={32} className="ml-1" />
                 </div>
-                <span className="text-white text-sm font-bold tracking-[0.2em] uppercase group-hover:text-[#00e5ff] transition-colors">START ENGINE</span>
               </button>
             </div>
           )}
@@ -98,15 +102,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onStart }) => {
       </div>
 
       {/* Footer System Info */}
-      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-8">
-        <div className="flex flex-col items-center">
-          <span className="text-[9px] text-white/20 uppercase tracking-widest">Platform</span>
-          <span className="text-[10px] text-white/40 font-mono">QuantumV_0.8.2</span>
+      <div className="absolute bottom-12 px-12 w-full flex justify-between items-end opacity-30 select-none">
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-[10px] text-white font-medium tracking-widest uppercase">
+            ©️SSB with Signboard, CS Joint Services Academy Pvt Ltd,
+          </span>
         </div>
-        <div className="w-px h-6 bg-white/10 self-center"></div>
-        <div className="flex flex-col items-center">
-          <span className="text-[9px] text-white/20 uppercase tracking-widest">Core</span>
-          <span className="text-[10px] text-white/40 font-mono">Engine_Init_OK</span>
+        <div className="flex flex-col items-end gap-1 text-right">
+          <span className="text-[10px] text-white font-medium tracking-widest uppercase">
+            All rights reserved, 2026.
+          </span>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ Command: npx gltfjsx@6.5.3 public/FINAL_GROUND.glb -t -r /public
 
 import * as THREE from 'three'
 import React from 'react'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF, useTexture } from '@react-three/drei'
 import { GLTF } from 'three-stdlib'
 
 type GLTFResult = GLTF & {
@@ -193,9 +193,7 @@ type GLTFResult = GLTF & {
     FGT04_R2CA_0003: THREE.Mesh
     FGT04_R2CA_0004: THREE.Mesh
     FGT04_R2CA_0005001: THREE.Mesh
-    Cube043: THREE.Mesh
-    Cube043_1: THREE.Mesh
-    FGT04_R2CA_0006: THREE.Mesh
+    FGT04_R2CA_0005002: THREE.Mesh
     Cube1033: THREE.Mesh
     Cube1033_1: THREE.Mesh
     Cube1033_2: THREE.Mesh
@@ -628,10 +626,6 @@ type GLTFResult = GLTF & {
     GATE_1: THREE.Mesh
     GATE_2: THREE.Mesh
     GATE_3: THREE.Mesh
-    GATE_4: THREE.Mesh
-    GATE_5: THREE.Mesh
-    GATE_6: THREE.Mesh
-    GATE_7: THREE.Mesh
     RockW: THREE.Mesh
     RockN: THREE.Mesh
     RockN2: THREE.Mesh
@@ -820,12 +814,8 @@ type GLTFResult = GLTF & {
     palm_bark_top: THREE.MeshStandardMaterial
     CONCRETE: THREE.MeshStandardMaterial
     Grass: THREE.MeshStandardMaterial
-    GTOPIC: THREE.MeshStandardMaterial
     SIGNAGE: THREE.MeshStandardMaterial
-    LOGO: THREE.MeshStandardMaterial
     METAL: THREE.MeshStandardMaterial
-    GOLD: THREE.MeshPhysicalMaterial
-    WHITE_TEXT: THREE.MeshStandardMaterial
     Bricks: THREE.MeshStandardMaterial
     Rock2: THREE.MeshStandardMaterial
     Rock1: THREE.MeshStandardMaterial
@@ -836,6 +826,15 @@ type GLTFResult = GLTF & {
 
 export function Model(props: JSX.IntrinsicElements['group']) {
   const { nodes, materials } = useGLTF('/FINAL_GROUND.glb') as GLTFResult
+  const signboard = useTexture('/signboard.jpg')
+
+  React.useEffect(() => {
+    if (signboard && materials.SIGNAGE) {
+      materials.SIGNAGE.map = signboard;
+      materials.SIGNAGE.map.flipY = true;
+      materials.SIGNAGE.needsUpdate = true;
+    }
+  }, [signboard, materials.SIGNAGE]);
   return (
     <group {...props} dispose={null}>
       <group position={[60.123, 0.59, -26.76]} rotation={[Math.PI, 0, Math.PI]}>
@@ -1168,11 +1167,7 @@ export function Model(props: JSX.IntrinsicElements['group']) {
             <mesh geometry={nodes.FGT04_R2CA_0003.geometry} material={materials.BLUE} position={[0.8, -0.13, 0.888]} rotation={[-Math.PI / 2, -0.005, 0]} scale={[0.145, 0.124, 0.113]} />
             <mesh geometry={nodes.FGT04_R2CA_0004.geometry} material={materials.BLUE} position={[0.143, -0.13, -1.419]} rotation={[-Math.PI / 2, -0.005, 0]} scale={[0.145, 0.124, 0.113]} />
             <mesh geometry={nodes.FGT04_R2CA_0005001.geometry} material={materials['Material.006']} position={[0.014, -0.087, 0.952]} rotation={[-Math.PI, 0.005, -Math.PI]} scale={[0.509, 0.039, 0.159]} />
-            <group position={[0.014, -0.087, 0.952]} rotation={[-Math.PI, 0.005, -Math.PI]} scale={[0.509, 0.039, 0.159]}>
-              <mesh geometry={nodes.Cube043.geometry} material={materials.WHITE} />
-              <mesh geometry={nodes.Cube043_1.geometry} material={materials['Material.009']} />
-            </group>
-            <mesh geometry={nodes.FGT04_R2CA_0006.geometry} material={nodes.FGT04_R2CA_0006.material} position={[0.014, 0.114, 0.945]} scale={[1, 1.911, 1]} />
+            <mesh geometry={nodes.FGT04_R2CA_0005002.geometry} material={materials.WHITE} position={[0.014, -0.087, 0.952]} rotation={[-Math.PI, 0.005, -Math.PI]} scale={[0.509, 0.039, 0.159]} />
           </group>
           <group position={[2.551, 0.171, -0.969]}>
             <group position={[-0.015, -0.057, 0.365]} rotation={[-Math.PI / 2, -0.005, 0]} scale={[0.269, 0.212, 0.113]}>
@@ -1198,7 +1193,7 @@ export function Model(props: JSX.IntrinsicElements['group']) {
           <mesh geometry={nodes.FGT04_T.geometry} material={materials['Material.004']} position={[-0.524, 0.209, 4.968]} scale={[0.771, 1.416, 0.771]} />
         </group>
       </group>
-      <group position={[2.169, 0.297, -28.642]}>
+      <group position={[2.169, 0.307, -30.316]}>
         <group position={[1.718, 0, -15.342]} rotation={[0, -0.674, 0]}>
           <group position={[0.88, -0.013, -0.237]}>
             <mesh geometry={nodes.S1_S1_OBS_0001.geometry} material={materials.WHITE} position={[-0.098, 0.013, 0.532]} />
@@ -1760,13 +1755,9 @@ export function Model(props: JSX.IntrinsicElements['group']) {
         <mesh geometry={nodes.HGT_ZONE_1.geometry} material={materials.Grass} />
       </group>
       <group position={[0.599, 14.493, 103.398]} rotation={[0, Math.PI / 2, 0]} scale={2.332}>
-        <mesh geometry={nodes.GATE_1.geometry} material={materials.GTOPIC} />
-        <mesh geometry={nodes.GATE_2.geometry} material={materials.SIGNAGE} />
-        <mesh geometry={nodes.GATE_3.geometry} material={materials.LOGO} />
-        <mesh geometry={nodes.GATE_4.geometry} material={materials.METAL} />
-        <mesh geometry={nodes.GATE_5.geometry} material={materials.GOLD} />
-        <mesh geometry={nodes.GATE_6.geometry} material={materials.WHITE_TEXT} />
-        <mesh geometry={nodes.GATE_7.geometry} material={materials.Bricks} />
+        <mesh geometry={nodes.GATE_1.geometry} material={materials.SIGNAGE} />
+        <mesh geometry={nodes.GATE_2.geometry} material={materials.METAL} />
+        <mesh geometry={nodes.GATE_3.geometry} material={materials.Bricks} />
       </group>
       <mesh geometry={nodes.RockW.geometry} material={materials.Rock2} position={[-122.339, -0.05, 55.623]} rotation={[Math.PI, 0, Math.PI]} scale={49.284} />
       <mesh geometry={nodes.RockN.geometry} material={materials.Rock1} position={[63.677, -0.05, -129.869]} rotation={[0, -0.142, 0]} scale={36.107} />
@@ -1775,7 +1766,7 @@ export function Model(props: JSX.IntrinsicElements['group']) {
       <mesh geometry={nodes.GROUP_OBSTACLES.geometry} material={nodes.GROUP_OBSTACLES.material} position={[0, 0, -79.833]}>
         <mesh geometry={nodes.GN_Instance.geometry} material={nodes.GN_Instance.material} />
       </mesh>
-      <mesh geometry={nodes.INDIVIDUAL_OBSTACLES.geometry} material={nodes.INDIVIDUAL_OBSTACLES.material} position={[1.697, 0.534, -6.935]}>
+      <mesh geometry={nodes.INDIVIDUAL_OBSTACLES.geometry} material={nodes.INDIVIDUAL_OBSTACLES.material} position={[1.697, 0.534, -7.709]}>
         <mesh geometry={nodes.GN_Instance_1.geometry} material={nodes.GN_Instance_1.material} />
       </mesh>
       <mesh geometry={nodes.GROUP_GRASS.geometry} material={materials.Grass} position={[0.599, 0.18, -68.272]} scale={[72.169, 5.001, 8.602]} />
@@ -1784,4 +1775,4 @@ export function Model(props: JSX.IntrinsicElements['group']) {
   )
 }
 
-useGLTF.preload('/FINAL_GROUND.glb')
+useGLTF.preload('/../I DRIVE/SSBWISV/public/FINAL_GROUND.glb')

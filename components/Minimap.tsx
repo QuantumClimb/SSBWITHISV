@@ -20,8 +20,8 @@ const Minimap: React.FC<MinimapProps> = ({ targets, onFocus, onReset }) => {
       className={`
         px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider
         bg-[#1e1e1e] border border-[#3c3c3c] text-[#cccccc]
-        hover:bg-[#2d2d30] hover:text-white hover:border-[#007acc]
-        active:bg-[#007acc] transition-all duration-150
+        hover:bg-[#2d2d30] hover:text-white hover:border-tactical-gold
+        active:bg-tactical-gold transition-all duration-150
         flex items-center justify-center text-center shadow-lg
         ${className}
       `}
@@ -31,13 +31,13 @@ const Minimap: React.FC<MinimapProps> = ({ targets, onFocus, onReset }) => {
   );
 
   return (
-    <div className="absolute bottom-4 right-6 z-50 flex flex-col-reverse items-end gap-2">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
           h-9 px-4 rounded-md flex items-center gap-2 border transition-all duration-200
           ${isOpen 
-            ? 'bg-[#007acc] border-[#007acc] text-white shadow-[0_0_15px_rgba(0,122,204,0.4)]' 
+            ? 'bg-tactical-gold border-tactical-gold text-white shadow-[0_0_15px_rgba(150,129,66,0.4)]' 
             : 'bg-[#252526]/95 border-[#3c3c3c] text-[#c5c5c5] hover:bg-[#2d2d30] hover:text-white'
           }
         `}
@@ -49,25 +49,25 @@ const Minimap: React.FC<MinimapProps> = ({ targets, onFocus, onReset }) => {
       </button>
 
       {isOpen && (
-        <div className="bg-[#252526]/95 backdrop-blur-md border border-[#3c3c3c] p-3 rounded-md shadow-2xl flex flex-col gap-2 w-80 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="bg-[#252526]/95 backdrop-blur-md border border-[#3c3c3c] p-3 rounded-md shadow-2xl flex flex-col gap-2 w-80 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="text-[11px] uppercase tracking-[0.14em] text-[#9d9d9d] mb-1 px-1">Quick Navigation</div>
           
           {/* Row 1: GROUP OBSTACLES & RESET */}
           <div className="grid grid-cols-2 gap-2">
             <button
                onClick={onReset}
-               className="px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#007acc] border border-[#007acc] text-white hover:bg-[#005a9e] transition-all duration-150 flex items-center justify-center text-center shadow-lg"
+               className="px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider bg-tactical-gold border border-tactical-gold text-white hover:bg-tactical-brass transition-all duration-150 flex items-center justify-center text-center shadow-lg"
             >
               RESET POSITION
             </button>
-            <Button name="GROUP OBSTACLES" />
+            <Button name="GROUP OBSTACLE RACE" />
           </div>
 
-          {/* Row 2: HGT, INDIVIDUAL OBSTACLES, FG */}
+          {/* Row 2: HGT, INDIVIDUAL OBSTACLES, FGT */}
           <div className="grid grid-cols-3 gap-2">
             <Button name="HGT" />
             <Button name="INDIVIDUAL OBSTACLES" />
-            <Button name="FG" />
+            <Button name="FGT" />
           </div>
 
           {/* Row 3: PGT, CT */}

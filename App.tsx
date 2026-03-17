@@ -144,13 +144,23 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Overlay for instructions */}
+      {/* Branding Overlay */}
       {isStarted && (
-        <div className="absolute top-6 left-6 z-20 pointer-events-none">
-          <h1 className="text-white text-xl font-bold tracking-tight drop-shadow-lg">
-            <span className="text-blue-500">SSBWITHISV</span>
-          </h1>
-        </div>
+        <>
+          <div className="absolute top-6 left-6 z-20 pointer-events-none flex items-center">
+            <img 
+              src="/VTX_LOGO.png" 
+              alt="VTX" 
+              className="h-8 w-auto object-contain drop-shadow-lg" 
+              style={{ filter: 'brightness(0) invert(1)' }}
+            />
+          </div>
+          <div className="absolute top-6 right-6 z-20 pointer-events-none text-right">
+            <h1 className="text-white text-[11px] font-bold tracking-[0.3em] font-kelson uppercase drop-shadow-lg">
+              SSB VIRTUAL TRAINING XPERIENCE
+            </h1>
+          </div>
+        </>
       )}
     </div>
   );

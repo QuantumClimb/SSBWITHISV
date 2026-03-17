@@ -171,6 +171,14 @@ const EquirectangularSky = ({ rotation = [0, 0, 0], scale = 100, meshRef }: { ro
   );
 };
 
+const EnvironmentManager = () => {
+  const envTexture = useTexture('/SKY.png');
+  useEffect(() => {
+    if (envTexture) envTexture.mapping = THREE.EquirectangularReflectionMapping;
+  }, [envTexture]);
+  return <Environment map={envTexture} environmentIntensity={0.4} />;
+};
+
 
 // Precomputed bounding sphere for fast collision rejection
 interface PathBounds {
@@ -985,17 +993,34 @@ const CameraDebugUpdater = ({ controlsRef, cameraRef, active }: { controlsRef: R
 const isMobile = navigator.maxTouchPoints > 1;
 
 // Third Person Controller implementation
-const ThirdPersonController = ({ active }: { active: boolean }) => {
-  const { camera, scene } = useThree();
+const ThirdPersonController = ({ 
+  active, 
+  lastPosition, 
+  lastTarget,
+  lastRotation 
+}: { 
+  active: boolean;
+  lastPosition: React.MutableRefObject<THREE.Vector3>;
+  lastTarget: React.MutableRefObject<THREE.Vector3>;
+  lastRotation: React.MutableRefObject<THREE.Euler>;
+}) => {
+  const { camera } = useThree();
   const avatarRef = useRef<THREE.Group>(null);
   const keys = useRef<Record<string, boolean>>({});
-  const moveSpeed = 0.2; // Halved speed
-  const rotateSpeed = 0.02; // Reduced rotation for better control
-  const BOUNDARY = 140; // Ground area limit
+  const moveSpeed = 0.2; 
+  const rotateSpeed = 0.02; 
+  const BOUNDARY = 140; 
   
-  // Camera offsets
-  const cameraOffset = new THREE.Vector3(0, 5, 12); // Behind and above
-  const lookAtOffset = new THREE.Vector3(0, 1, 0); // Look slightly above the box
+  const cameraOffset = new THREE.Vector3(0, 5, 12); 
+  const lookAtOffset = new THREE.Vector3(0, 1, 0); 
+
+  // Initialize/Sync position on activation
+  useEffect(() => {
+    if (active && avatarRef.current) {
+      avatarRef.current.position.copy(lastPosition.current);
+      avatarRef.current.rotation.copy(lastRotation.current);
+    }
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -1029,26 +1054,28 @@ const ThirdPersonController = ({ active }: { active: boolean }) => {
       moveDirection.applyQuaternion(avatar.quaternion);
       const nextPos = avatar.position.clone().add(moveDirection.multiplyScalar(moveSpeed));
       
-      // Simple AABB ground boundary check
       if (Math.abs(nextPos.x) <= BOUNDARY && Math.abs(nextPos.z) <= BOUNDARY) {
         avatar.position.copy(nextPos);
       }
     }
 
-    // Keep character on ground
-    avatar.position.y = 0; // Model likely has its feet at 0
+    avatar.position.y = 0; 
 
     // 2. Update Camera Follow
     const idealOffset = cameraOffset.clone().applyQuaternion(avatar.quaternion).add(avatar.position);
     const idealLookAt = lookAtOffset.clone().add(avatar.position);
 
-    // Smooth camera transition
+    // Persist position and actual target for other modes
+    lastPosition.current.copy(avatar.position);
+    lastTarget.current.copy(idealLookAt);
+    lastRotation.current.copy(avatar.rotation);
+
     camera.position.lerp(idealOffset, 0.1);
     camera.lookAt(idealLookAt);
   });
 
   return active ? (
-    <group ref={avatarRef} position={[0, 0, 0]}>
+    <group ref={avatarRef}>
       <Man scale={1.5} rotation={[0, Math.PI, 0]} />
     </group>
   ) : null;
@@ -1071,7 +1098,7 @@ const MovementKeypad = ({ onKeyChange }: { onKeyChange: (key: string, value: boo
 
   const btnClass = (key: string) => `
     w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg pointer-events-auto
-    ${activeButton === key ? 'bg-[#007acc] scale-95 shadow-inner' : 'bg-black/40 backdrop-blur-md border border-white/10 hover:bg-black/60'}
+    ${activeButton === key ? 'bg-[#968142] scale-95 shadow-inner' : 'bg-black/40 backdrop-blur-md border border-white/10 hover:bg-black/60'}
     transition-all duration-100 select-none touch-none
   `;
 
@@ -1259,10 +1286,15 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const [fogEnabled, setFogEnabled] = useState(true);
   const [fogDistance, setFogDistance] = useState(480);
   const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 13, 150]);
-  const [maxOrbitDistance, setMaxOrbitDistance] = useState(175);
+  const [maxOrbitDistance, setMaxOrbitDistance] = useState(200);
   const [maxPolarAngle, setMaxPolarAngle] = useState(1.5);
   const [cameraFov, setCameraFov] = useState(50);
   const [minimapTargets, setMinimapTargets] = useState<Record<string, [number, number, number]>>({});
+  
+  // Persistent Player State
+  const lastPlayerPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const lastPlayerTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 1, 0));
+  const lastPlayerRotation = useRef<THREE.Euler>(new THREE.Euler(0, 0, 0));
   
   // Camera animation state
   const targetPosRef = useRef<THREE.Vector3 | null>(null);
@@ -1318,6 +1350,15 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
     }
   }, [cameraFov]);
 
+  useEffect(() => {
+    if (cameraMode === 'orbit' && cameraRef.current && lastPlayerTarget.current) {
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(lastPlayerTarget.current);
+        controlsRef.current.update();
+      }
+    }
+  }, [cameraMode]);
+
 
 
   const updateAxis = (
@@ -1368,7 +1409,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 step="0.01"
                 value={skyRotation[2]}
                 onChange={(e) => setSkyRotation([skyRotation[0], skyRotation[1], Number.parseFloat(e.target.value)])}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{skyRotation[2].toFixed(2)}</span>
             </div>
@@ -1381,7 +1422,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 step="1"
                 value={skyScale}
                 onChange={(e) => setSkyScale(Number.parseFloat(e.target.value))}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{skyScale}</span>
             </div>
@@ -1394,7 +1435,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 type="checkbox"
                 checked={fogEnabled}
                 onChange={(e) => setFogEnabled(e.target.checked)}
-                className="accent-[#007acc]"
+                className="accent-[#968142]"
               />
               <span>Enabled</span>
             </label>
@@ -1408,7 +1449,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                   step="10"
                   value={fogDistance}
                   onChange={(e) => setFogDistance(Number.parseFloat(e.target.value))}
-                  className="flex-1 accent-[#007acc]"
+                  className="flex-1 accent-[#968142]"
                 />
                 <span className="text-[11px] w-10 text-right">{fogDistance}</span>
               </div>
@@ -1420,13 +1461,13 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             <div className="flex bg-black/20 p-1 rounded-lg gap-1">
               <button
                 onClick={() => setUnitSystem('metric')}
-                className={`flex-1 py-1 rounded-md text-[10px] uppercase transition-all ${unitSystem === 'metric' ? 'bg-[#007acc] text-white shadow-lg' : 'text-[#888] hover:text-white'}`}
+                className={`flex-1 py-1 rounded-md text-[10px] uppercase transition-all ${unitSystem === 'metric' ? 'bg-[#968142] text-white shadow-lg' : 'text-[#888] hover:text-white'}`}
               >
                 Meters
               </button>
               <button
                 onClick={() => setUnitSystem('imperial')}
-                className={`flex-1 py-1 rounded-md text-[10px] uppercase transition-all ${unitSystem === 'imperial' ? 'bg-[#007acc] text-white shadow-lg' : 'text-[#888] hover:text-white'}`}
+                className={`flex-1 py-1 rounded-md text-[10px] uppercase transition-all ${unitSystem === 'imperial' ? 'bg-[#968142] text-white shadow-lg' : 'text-[#888] hover:text-white'}`}
               >
                 Feet
               </button>
@@ -1444,7 +1485,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 step="0.05"
                 value={directionalIntensity}
                 onChange={(e) => setDirectionalIntensity(Number.parseFloat(e.target.value))}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{directionalIntensity.toFixed(2)}</span>
             </div>
@@ -1457,7 +1498,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 step="0.05"
                 value={ambientIntensity}
                 onChange={(e) => setAmbientIntensity(Number.parseFloat(e.target.value))}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{ambientIntensity.toFixed(2)}</span>
             </div>
@@ -1469,7 +1510,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               {(['X', 'Y', 'Z'] as const).map((axis) => (
                 <div
                   key={`pos-${axis}`}
-                  className="h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#007acc] font-mono"
+                  className="h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#968142] font-mono"
                   title={`Camera ${axis}`}
                 >
                   <span className="text-[#9d9d9d] mr-1">{axis}:</span>
@@ -1483,7 +1524,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               {(['X', 'Y', 'Z'] as const).map((axis) => (
                 <div
                   key={`target-${axis}`}
-                  className="h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#007acc] font-mono"
+                  className="h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#968142] font-mono"
                   title={`Target ${axis}`}
                 >
                   <span className="text-[#9d9d9d] mr-1">{axis}:</span>
@@ -1494,7 +1535,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
 
             <div className="flex items-center gap-2">
               <span className="text-[11px] w-16 text-[#9d9d9d]">Live Polar</span>
-              <div className="flex-1 h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#007acc] font-mono">
+              <div className="flex-1 h-8 flex items-center px-2 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] rounded-sm text-[#968142] font-mono">
                 <span id="cam-polar-angle">0.00</span>
                 <span className="text-[#9d9d9d] ml-1">rad</span>
               </div>
@@ -1504,12 +1545,12 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
               <span className="text-[11px] w-16 text-[#9d9d9d]">Zoom Limit</span>
               <input
                 type="range"
-                min="40"
-                max="200"
+                min="5"
+                max="150"
                 step="5"
                 value={maxOrbitDistance}
                 onChange={(e) => setMaxOrbitDistance(Number.parseFloat(e.target.value))}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{maxOrbitDistance}</span>
             </div>
@@ -1523,7 +1564,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 step="0.01"
                 value={maxPolarAngle}
                 onChange={(e) => setMaxPolarAngle(Number.parseFloat(e.target.value))}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{maxPolarAngle.toFixed(2)}</span>
             </div>
@@ -1537,7 +1578,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 step="1"
                 value={cameraFov}
                 onChange={(e) => setCameraFov(Number.parseFloat(e.target.value))}
-                className="flex-1 accent-[#007acc]"
+                className="flex-1 accent-[#968142]"
               />
               <span className="text-[11px] w-10 text-right">{cameraFov}</span>
             </div>
@@ -1565,7 +1606,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         }}
       >
 
-        <Environment preset="city" environmentIntensity={0.4} />
+        <Suspense fallback={null}>
+          <EnvironmentManager />
+        </Suspense>
         <EquirectangularSky rotation={skyRotation} scale={skyScale} meshRef={skyRef} />
         {fogEnabled && (
           // eslint-disable-next-line react/no-unknown-property
@@ -1634,7 +1677,12 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
           />
         </Suspense>
 
-        <ThirdPersonController active={cameraMode === 'thirdperson'} />
+        <ThirdPersonController 
+          active={cameraMode === 'thirdperson'} 
+          lastPosition={lastPlayerPosition}
+          lastTarget={lastPlayerTarget}
+          lastRotation={lastPlayerRotation}
+        />
 
         {/* Post-processing effects for better visual quality */}
         <EffectComposer multisampling={4}>
@@ -1646,13 +1694,14 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             ref={controlsRef}
             enabled={activeTool === 'view'}
             makeDefault
+            target={lastPlayerTarget.current}
             enableDamping
             dampingFactor={0.08}
             rotateSpeed={1}
             zoomSpeed={1}
             autoRotate={false}
             autoRotateSpeed={2}
-            minDistance={10}
+            minDistance={5}
             maxDistance={maxOrbitDistance}
             minPolarAngle={0}
             maxPolarAngle={maxPolarAngle}

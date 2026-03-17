@@ -115,7 +115,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const iconButtonClass = (active: boolean) =>
     `h-10 w-10 flex items-center justify-center rounded-md border transition-colors ${active
-      ? 'bg-[#094771] border-[#007acc] text-[#ffffff]'
+      ? 'bg-[#968142] border-[#968142] text-[#ffffff]'
       : 'bg-[#2d2d30] border-[#3c3c3c] text-[#c5c5c5] hover:bg-[#37373d]'
     }`;
 
@@ -167,7 +167,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 key={c}
                 onClick={() => onColorChange(c)}
-                className={`h-4 w-4 rounded-sm border ${color === c ? 'border-[#007acc] ring-1 ring-[#007acc]' : 'border-[#3c3c3c]'
+                className={`h-4 w-4 rounded-sm border ${color === c ? 'border-[#968142] ring-1 ring-[#968142]' : 'border-[#3c3c3c]'
                   }`}
                 style={{ backgroundColor: c }}
                 title={c}

@@ -41,7 +41,7 @@ const MovementGamepad: React.FC<MovementGamepadProps> = ({ onDirectionChange, ac
                 }}
                 className={`flex items-center justify-center w-12 h-12 rounded-full border transition-all duration-150 select-none touch-none
           ${isActive
-                        ? 'bg-[#007acc] border-[#007acc] text-white scale-90 shadow-inner'
+                        ? 'bg-[#968142] border-[#968142] text-white scale-90 shadow-inner'
                         : 'bg-[#252526]/80 border-[#3c3c3c] text-[#cccccc] hover:bg-[#2d2d30]'} 
           ${className}`}
                 title={label}
