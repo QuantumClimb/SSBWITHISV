@@ -331,6 +331,11 @@ const ModelWithAnnotations = ({
   cameraRef,
   unitSystem,
   onToolChange,
+  cameraMode,
+  isPlayerSpawned,
+  setIsPlayerSpawned,
+  lastPlayerPosition,
+  lastPlayerRotation,
 }: {
   activeTool: ToolMode;
   onAddPath3D: (path: Path3D) => void;
@@ -357,6 +362,11 @@ const ModelWithAnnotations = ({
   cameraRef: React.RefObject<THREE.Camera | null>;
   unitSystem: UnitSystem;
   onToolChange: (tool: ToolMode) => void;
+  cameraMode: CameraMode;
+  isPlayerSpawned: boolean;
+  setIsPlayerSpawned: (s: boolean) => void;
+  lastPlayerPosition: React.MutableRefObject<THREE.Vector3>;
+  lastPlayerRotation: React.MutableRefObject<THREE.Euler>;
 }) => {
   const { gl, scene, camera, size: canvasSize } = useThree();
   const gpuPicker = useMemo(() => new GpuPicker(), []);
@@ -668,8 +678,24 @@ const ModelWithAnnotations = ({
         // Auto-switch back to view mode
         onToolChange('view');
       }
+    } else if (cameraMode === 'thirdperson' && !isPlayerSpawned) {
+      e.stopPropagation();
+      const mouse = { x: e.pointer.x, y: e.pointer.y };
+      const surface = getSurfacePointGPU(mouse);
+      if (surface && cameraRef.current) {
+        // 1. Set the player position and initial rotation
+        lastPlayerPosition.current.copy(surface.point);
+        
+        // Face away from camera
+        const forward = new THREE.Vector3();
+        cameraRef.current.getWorldDirection(forward);
+        lastPlayerRotation.current.y = Math.atan2(forward.x, forward.z);
+        
+        // 2. Mark as spawned
+        setIsPlayerSpawned(true);
+      }
     }
-  }, [activeTool, getSurfacePointGPU, eraseAt, tempMeasurement, onAddMeasurement, selectedObjectType, tempPlacement, onAddPlacedObject, currentColor, cameraRef, controlsRef, targetLookAtRef, targetPosRef, isAnimatingCamera]);
+  }, [activeTool, getSurfacePointGPU, eraseAt, tempMeasurement, onAddMeasurement, selectedObjectType, tempPlacement, onAddPlacedObject, currentColor, cameraRef, controlsRef, targetLookAtRef, targetPosRef, isAnimatingCamera, cameraMode, isPlayerSpawned, setIsPlayerSpawned, lastPlayerPosition, lastPlayerRotation]);
 
   const handleDoubleClick = useCallback((e: any) => {
     if (activeTool !== 'view') return;
@@ -715,6 +741,15 @@ const ModelWithAnnotations = ({
       }
       setHoverPoint(null);
     } else if (activeTool === 'focus' || activeTool === 'measure') {
+      const surface = getSurfacePointGPU(mouse);
+      if (surface) {
+        setHoverPoint(surface.point);
+        setHoverNormal(surface.normal);
+      } else {
+        setHoverPoint(null);
+      }
+      if (brushRef.current) brushRef.current.visible = false;
+    } else if (cameraMode === 'thirdperson' && !isPlayerSpawned) {
       const surface = getSurfacePointGPU(mouse);
       if (surface) {
         setHoverPoint(surface.point);
@@ -896,12 +931,12 @@ const ModelWithAnnotations = ({
         />
 
         {/* 3D Cursors / Reticles */}
-        {hoverPoint && hoverNormal && (activeTool === 'focus' || activeTool === 'measure') && (
-          <CursorReticle
-            position={hoverPoint}
-            normal={hoverNormal}
-            color={activeTool === 'focus' ? '#ffeb3b' : '#00e5ff'}
-            type={activeTool === 'focus' ? 'focus' : 'measure'}
+        {hoverPoint && hoverNormal && (activeTool === 'focus' || activeTool === 'measure' || (cameraMode === 'thirdperson' && !isPlayerSpawned)) && (
+          <CursorReticle 
+            position={hoverPoint} 
+            normal={hoverNormal} 
+            color={cameraMode === 'thirdperson' ? '#ffeb3b' : (activeTool === 'measure' ? '#00e5ff' : '#ffffff')}
+            type={activeTool === 'focus' || cameraMode === 'thirdperson' ? 'focus' : 'measure'} 
           />
         )}
       </group>
@@ -995,11 +1030,13 @@ const isMobile = navigator.maxTouchPoints > 1;
 // Third Person Controller implementation
 const ThirdPersonController = ({ 
   active, 
+  isPlayerSpawned,
   lastPosition, 
   lastTarget,
   lastRotation 
 }: { 
   active: boolean;
+  isPlayerSpawned: boolean;
   lastPosition: React.MutableRefObject<THREE.Vector3>;
   lastTarget: React.MutableRefObject<THREE.Vector3>;
   lastRotation: React.MutableRefObject<THREE.Euler>;
@@ -1016,14 +1053,14 @@ const ThirdPersonController = ({
 
   // Initialize/Sync position on activation
   useEffect(() => {
-    if (active && avatarRef.current) {
+    if (active && isPlayerSpawned && avatarRef.current) {
       avatarRef.current.position.copy(lastPosition.current);
       avatarRef.current.rotation.copy(lastRotation.current);
     }
-  }, [active]);
+  }, [active, isPlayerSpawned]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !isPlayerSpawned) return;
 
     const handleKeyDown = (e: KeyboardEvent) => { keys.current[e.code] = true; };
     const handleKeyUp = (e: KeyboardEvent) => { keys.current[e.code] = false; };
@@ -1038,7 +1075,7 @@ const ThirdPersonController = ({
   }, [active]);
 
   useFrame((_state, _delta) => {
-    if (!active || !avatarRef.current) return;
+    if (!active || !isPlayerSpawned || !avatarRef.current) return;
 
     const avatar = avatarRef.current;
     
@@ -1074,7 +1111,7 @@ const ThirdPersonController = ({
     camera.lookAt(idealLookAt);
   });
 
-  return active ? (
+  return active && isPlayerSpawned ? (
     <group ref={avatarRef}>
       <Man scale={1.5} rotation={[0, Math.PI, 0]} />
     </group>
@@ -1301,6 +1338,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
   const targetLookAtRef = useRef<THREE.Vector3 | null>(null);
   const isAnimatingCamera = useRef<boolean>(false);
   const isInternalUpdateRef = useRef<boolean>(false);
+  const [isPlayerSpawned, setIsPlayerSpawned] = useState(false);
 
   const focusOnTarget = useCallback((name: string) => {
     const posArr = minimapTargets[name];
@@ -1356,6 +1394,9 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
         controlsRef.current.target.copy(lastPlayerTarget.current);
         controlsRef.current.update();
       }
+    } else if (cameraMode === 'thirdperson') {
+      // Reset spawn state when switching to thirdperson mode
+      setIsPlayerSpawned(false);
     }
   }, [cameraMode]);
 
@@ -1380,7 +1421,7 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
     <div className="absolute inset-0 w-full h-full bg-slate-900">
       <Minimap targets={minimapTargets} onFocus={focusOnTarget} onReset={handleReset} />
 
-      {cameraMode === 'thirdperson' && (
+      {cameraMode === 'thirdperson' && isPlayerSpawned && (
         <MovementKeypad 
           onKeyChange={(key, value) => {
             // This allows us to Bridge the keypad to the controller's ref
@@ -1674,11 +1715,17 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
             cameraRef={cameraRef}
             unitSystem={unitSystem}
             onToolChange={onToolChange}
+            cameraMode={cameraMode}
+            isPlayerSpawned={isPlayerSpawned}
+            setIsPlayerSpawned={setIsPlayerSpawned}
+            lastPlayerPosition={lastPlayerPosition}
+            lastPlayerRotation={lastPlayerRotation}
           />
         </Suspense>
 
         <ThirdPersonController 
           active={cameraMode === 'thirdperson'} 
+          isPlayerSpawned={isPlayerSpawned}
           lastPosition={lastPlayerPosition}
           lastTarget={lastPlayerTarget}
           lastRotation={lastPlayerRotation}
@@ -1735,18 +1782,14 @@ const Viewer3D: React.FC<Viewer3DProps> = ({
                 // Always sync the refs so other modes (like Third Person or re-enabling) stay correct
                 lastPlayerTarget.current.copy(e.target.target);
                 
-                // Character should spawn at the ground target, not the camera eye position
-                lastPlayerPosition.current.copy(e.target.target);
+                // Character should spawn at the CAMERA'S ground projection for most intuitive feel
+                lastPlayerPosition.current.set(cameraRef.current.position.x, 0, cameraRef.current.position.z);
 
-                // Calculate horizontal rotation so player faces away from camera
-                const dir = new THREE.Vector3().subVectors(e.target.target, cameraRef.current.position);
-                dir.y = 0;
-                if (dir.lengthSq() > 0.1) {
-                  dir.normalize();
-                  // atan2(x, z) gives the angle from the Z axis
-                  // We use this to set the Y-axis rotation of the character
-                  lastPlayerRotation.current.y = Math.atan2(dir.x, dir.z);
-                }
+                // Character should face the same direction the camera is looking
+                const forward = new THREE.Vector3();
+                cameraRef.current.getWorldDirection(forward);
+                // atan2(x, z) gives the angle from the Z axis
+                lastPlayerRotation.current.y = Math.atan2(forward.x, forward.z);
               }
             }}
           />
