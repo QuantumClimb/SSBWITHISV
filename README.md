@@ -92,7 +92,7 @@ Large model files (`.glb`) are managed via Git LFS for efficient storage and dep
 │   ├── AnnotationCanvas.tsx   # 2D overlay drawing
 │   └── Toolbar.tsx            # Tool selection UI with shortcuts
 ├── public/
-│   └── MAIN_GTO_GROUND4.glb   # Optimised 3D model
+│   └── FINAL_GRID.glb         # Optimized high-fidelity 3D model
 ├── App.tsx                    # Main application logic
 └── types.ts                   # TypeScript type definitions
 ```

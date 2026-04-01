@@ -1,4 +1,4 @@
-# Intellectual Property Disclosure: Virtual GTO Trainer
+# Intellectual Property Disclosure: SSBWITHISV Virtual GTO Trainer
 
 ## 1. Title of Invention
 **High-Performance Multi-Modal 3D Training System with Shader-Based Attribute Extraction and Spatial-Indexed Annotation Optimization**
@@ -72,7 +72,7 @@ To ensure training continuity, the platform utilizes a persistence layer for cam
 - **Cross-Mode State Bridge**: Continuously synchronizes camera position and focus targets across Orbit, Third Person, and Focus modes to eliminate visual "jumps" during tool switching.
 
 ## 5. Comprehensive Feature Suite
--   **First Virtual GTO Trainer**: Specialized for strategic Game Theory visualization.
+-   **SSBWITHISV**: Specialized for virtual strategic Game Theory visualization.
 -   **Hybrid Camera State Machine**: Seamlessly switches between Orbit, FPV, and TPV using a proprietary interpolation logic (`LERP` for target and position).
 -   **Context-Aware Mode Controller**: Automatically reverts the interaction state to "Orbit/View" mode upon successful focus-target acquisition, optimizing user workflow for inspection.
 -   **Multi-Layer Canvas**: Synchronized rendering of 2D screen-space and 3D mesh-space annotations.
@@ -88,5 +88,187 @@ To ensure training continuity, the platform utilizes a persistence layer for cam
 7.  A method for aggregating 3D sub-elements into logical tactical groups using name-pattern heuristics for automated camera orientation.
 8.  A mechanism for maintaining camera state during tool-switching by decoupling interaction from mounting in a component-based 3D environment.
 
----
-*End of Technical Disclosure*
+7. AI-Augmented Roadmap and Intelligent Systems Layer
+7.1 Procedural Obstacle Generation via Generative AI Models
+
+The system is designed to evolve from static asset-based environments into a fully procedural, AI-driven obstacle synthesis framework.
+
+Core Concept
+
+A hybrid Generative Geometry Pipeline (GGP) enables dynamic creation of training obstacles using both:
+
+Prompt-driven semantic generation
+Constraint-based parametric synthesis
+Technical Implementation
+7.1.1 Multi-Modal Input Encoding
+Natural language prompts (e.g., "tight CQB corridor with limited visibility and elevated cover")
+Structured parameters:
+Difficulty scalar 
+𝑑
+∈
+[
+0
+,
+1
+]
+d∈[0,1]
+Spatial density coefficient
+Tactical archetype vectors (cover-heavy, mobility-restricted, verticality-biased)
+
+These inputs are encoded into a latent design vector.
+
+7.1.2 Geometry Synthesis Engine
+Neural Shape Priors + Rule-Based Constraints
+Hybrid approach:
+Diffusion / NeRF-inspired volumetric priors (for macro layout)
+Deterministic mesh assembly (for runtime efficiency)
+
+Pipeline:
+
+Latent vector → layout graph
+Layout graph → modular asset instantiation
+Asset instantiation → geometry stitching + BVH rebuild
+7.1.3 Constraint Solver Layer
+
+Ensures generated obstacles remain:
+
+Physically traversable
+Tactically valid
+Within gameplay constraints
+
+Implements:
+
+Graph-based spatial validation
+Collision-free path guarantees
+Reachability heuristics
+7.1.4 Real-Time Regeneration
+Obstacles can be:
+Generated per session
+Mutated mid-session
+Adapted based on player performance feedback
+7.2 Reinforcement Learning-Based Difficulty Adaptation
+
+The platform integrates a closed-loop training optimization system using reinforcement learning principles.
+
+System Model
+State 
+𝑆
+𝑡
+S
+t
+	​
+
+:
+Player position, velocity, interaction latency
+Decision accuracy
+Path efficiency metrics
+Action 
+𝐴
+𝑡
+A
+t
+	​
+
+:
+Modify obstacle layout
+Introduce constraints (visibility reduction, time pressure)
+Adjust object placement density
+Reward Function 
+𝑅
+𝑡
+R
+t
+	​
+
+:
+Penalizes inefficient traversal
+Rewards optimal decision pathways
+Encourages exploration vs exploitation balance
+Outcome
+
+A continuously adapting environment that:
+
+Prevents plateauing
+Personalizes training difficulty
+Simulates adversarial unpredictability
+7.3 AI-Assisted Tactical Assessment Engine
+
+This is a core differentiator—moving from visualization → evaluation and coaching.
+
+7.3.1 Trajectory Analysis
+Captures:
+Player movement paths
+Camera orientation vectors
+Interaction timestamps
+Uses:
+Temporal sequence modeling (Transformer-based)
+Pattern comparison against optimal GTO trajectories
+7.3.2 Decision Evaluation Framework
+
+Each player action is scored across multiple axes:
+
+Metric	Description
+Positional Efficiency	Distance vs optimal path
+Exposure Risk	Time spent in vulnerable zones
+Decision Latency	Time-to-action after stimulus
+Strategic Alignment	Deviation from GTO baseline
+7.3.3 Explainable Feedback System
+
+Instead of raw scores, the system provides:
+
+Heatmaps of suboptimal regions
+Vector overlays showing "ideal path vs actual path"
+Contextual recommendations:
+"Delayed cover transition by 1.2s increased exposure window by 34%"
+7.4 Synthetic Scenario Generation Engine
+
+To expand training diversity:
+
+Scenario Graph Generator
+Constructs full training scenarios using:
+Obstacle graphs
+Objective nodes
+Dynamic constraints
+Scenario Types
+Deterministic drills
+Randomized environments
+Adversarial AI-generated layouts
+7.5 AI-Driven Asset Optimization Pipeline
+
+To maintain performance parity with procedural generation:
+
+On-the-fly mesh decimation
+LOD prediction via ML models
+Dynamic BVH reconstruction prioritization
+
+This ensures:
+
+No degradation in frame-time
+Consistent interaction latency even with generated geometry
+7.6 Multi-Agent Simulation Layer (Future Extension)
+
+A forward-compatible system for simulating:
+
+AI agents with:
+Behavior trees + RL policies
+Tactical role assignment
+Applications
+Simulated opponents
+Cooperative team drills
+Stress-testing decision-making under pressure
+7.7 Integration with Existing Architecture
+
+This AI layer is not standalone—it is tightly coupled with your existing innovations:
+
+GpuPicker Engine → feeds precise spatial data into AI models
+BVH Acceleration → enables real-time regeneration
+Path Simplification → compresses trajectory data for ML ingestion
+Measurement Engine → provides ground-truth metrics for evaluation
+
+8. Extended Technical Claims (AI Layer)
+A system for generating 3D training environments using a hybrid generative AI and constraint-based geometry synthesis pipeline.
+A reinforcement learning framework for dynamically adapting obstacle difficulty based on real-time user performance metrics.
+A method for evaluating user trajectories against optimal strategies using temporal sequence modeling and spatial analytics.
+An explainable AI feedback system that converts spatial inefficiencies into actionable tactical insights.
+A procedural scenario generation engine utilizing graph-based representations of obstacles and objectives.
+A real-time geometry optimization pipeline leveraging machine learning for LOD and BVH prioritization.

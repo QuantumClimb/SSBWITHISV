@@ -15,7 +15,7 @@ interface MainModelProps extends Partial<ThreeElements['group']> {
 }
 
 export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
-  const { scene } = useGLTF('/FINAL_GROUND.glb') as unknown as GLTFResult
+  const { scene } = useGLTF('/FINAL_GRID.glb') as unknown as GLTFResult
   
   // Custom textures provided by the user
   const rockTexture = useTexture('/rock.jpg')
@@ -47,14 +47,14 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
 
   // Traverse the scene graph to apply material overrides and calculate markers
   const { markers, minimapTargets } = React.useMemo(() => {
-    const { scene, materials } = useGLTF('/FINAL_GROUND.glb') as unknown as GLTFResult
+    const { scene, materials } = useGLTF('/FINAL_GRID.glb') as unknown as GLTFResult
     const drySandMaterial = materials['Dry Sand']
     const beachMaterial = materials['BEACH']
 
     // 0. Global Material Configuration
     if (beachMaterial && topNewTexture) {
       beachMaterial.map = topNewTexture
-      // Rotate texture 180 degrees as requested
+      // Rotate texture 180 degrees as requested for beach alignment
       topNewTexture.center.set(0.5, 0.5)
       topNewTexture.rotation = Math.PI
     }
@@ -105,20 +105,24 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
           m.map = concreteTexture
           m.name = 'CONCRETE_WHITE_OVERRIDE'
           object.material = m
-        } else if (matName.includes('grass') || name.toLowerCase().includes('grass')) {
+        } else if (matName.includes('grass') || name.toLowerCase().includes('grass') || matName.includes('green')) {
           const m = new THREE.MeshStandardMaterial({ 
-            color: '#2d5a27', 
+            color: matName.includes('dark') ? '#1a3a16' : '#2d5a27', 
             roughness: 0.8, 
             metalness: 0.1 
           })
-          m.name = 'GRASS_GREEN_OVERRIDE'
+          m.name = matName.includes('dark') ? 'GRASS_DARK_OVERRIDE' : 'GRASS_GREEN_OVERRIDE'
           object.material = m
-        } else if (matName.includes('signage') || matName.includes('logo') || matName.includes('topic')) {
+        } else if (matName === 'signage' || matName.includes('logo') || matName.includes('topic')) {
           const updateMat = (mat: any) => {
             if (mat && (mat.name.toLowerCase().includes('signage') || mat.name.toLowerCase().includes('logo') || mat.name.toLowerCase().includes('topic'))) {
               const m = mat.clone();
               m.map = mat.name.toLowerCase().includes('gtopic') ? gtoTexture : signboardTexture;
-              if (m.map) m.map.flipY = true;
+              
+              if (m.map) {
+                m.map.flipY = true; // Corrected: Signage needs flipY for proper alignment
+              }
+              
               m.name = mat.name.toLowerCase().includes('gtopic') ? 'GOTO_OVERRIDE' : 'SIGNBOARD_OVERRIDE';
               m.needsUpdate = true;
               return m;
@@ -155,8 +159,8 @@ export function MainModel({ onTargetsUpdate, ...props }: MainModelProps) {
       // 2. Identify Target Groups/Singulars for Markers & Minimap
       const isPGTIndex = name.match(/^PGT(_GRID)?_?\d*/)
       const isCTIndex = name.match(/^CT(_GRID)?_?\d*/)
-      const isPGTNew = name === 'PGT_NEW_GRID' || name === 'PGT_GROUND'
-      const isHGTZone = name === 'HGT_ZONE'
+      const isPGTNew = name === 'PGT_NEW_GRID' || name === 'PGT_GROUND' || name === 'FGT_GROUND_1' || name === 'FGT_PLACES'
+      const isHGTZone = name === 'HGT_ZONE' || name.startsWith('ZONEHGT')
       
       if (isPGTIndex || isCTIndex || isPGTNew || isHGTZone) {
         const pos = new THREE.Vector3()
