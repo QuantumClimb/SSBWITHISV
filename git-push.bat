@@ -1,5 +1,5 @@
 @echo off
-cd /d "k:\I DRIVE\SSBWISV"
+cd /d "%~dp0"
 
 echo ================================
 echo Git Push Automation
