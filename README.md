@@ -1,4 +1,4 @@
-# SSBWITHISV - Virtual GTO Trainer
+# VTX - Virtual Training Xperience
 
 A 3D annotation and training application for visualizing and annotating 3D models with real-time drawing tools.
 
@@ -75,7 +75,7 @@ A 3D annotation and training application for visualizing and annotating 3D model
 
 ## Deployment
 
-The application is deployed on Vercel at: https://ssbwithisv.vercel.app
+The application is deployed on Vercel at: https://vtx.vercel.app
 
 Large model files (`.glb`) are managed via Git LFS for efficient storage and deployment.
 

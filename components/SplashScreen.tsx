@@ -105,7 +105,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onStart }) => {
       <div className="absolute bottom-12 px-12 w-full flex justify-between items-end opacity-30 select-none">
         <div className="flex flex-col items-start gap-1">
           <span className="text-[10px] text-white font-medium tracking-widest uppercase">
-            ©️SSBWITHISV, CS Joint Services Academy Pvt Ltd,
+            ©️VTX, CS Joint Services Academy Pvt Ltd,
           </span>
         </div>
         <div className="flex flex-col items-end gap-1 text-right">

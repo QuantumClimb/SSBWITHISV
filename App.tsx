@@ -157,7 +157,7 @@ const App: React.FC = () => {
           </div>
           <div className="absolute top-6 right-6 z-20 pointer-events-none text-right">
             <h1 className="text-white text-[11px] font-bold tracking-[0.3em] font-kelson uppercase drop-shadow-lg">
-              SSB VIRTUAL TRAINING XPERIENCE
+              VTX - VIRTUAL TRAINING XPERIENCE
             </h1>
           </div>
         </>

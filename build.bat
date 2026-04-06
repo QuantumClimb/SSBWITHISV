@@ -5,7 +5,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ========================================
-echo SSB VIRTUAL TRAINING XPERIENCE - Build
+echo VTX VIRTUAL TRAINING XPERIENCE - Build
 echo ========================================
 echo.
 
